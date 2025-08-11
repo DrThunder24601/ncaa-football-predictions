@@ -41,9 +41,16 @@ def load_google_sheets_data():
         if not config:
             return pd.DataFrame(), "Configuration not loaded"
         
-        # Create credentials from secrets
-        creds_dict = dict(st.secrets["google_service_account"])
-        creds = Credentials.from_service_account_info(creds_dict)
+# Create credentials from secrets with proper scopes
+          creds_dict = dict(st.secrets["google_service_account"])
+          scopes = [
+              'https://www.googleapis.com/auth/spreadsheets',
+              'https://www.googleapis.com/auth/drive'
+          ]
+          creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+
+          # Authenticate with Google Sheets
+          gc = gspread.authorize(creds)
         
         # Authenticate with Google Sheets
         gc = gspread.authorize(creds)
