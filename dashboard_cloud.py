@@ -17,6 +17,198 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for professional styling
+def inject_custom_css():
+    st.markdown("""
+    <style>
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    /* Root variables - Football theme colors */
+    :root {
+        --primary-green: #2E7D32;
+        --primary-orange: #F57C00;
+        --dark-blue: #1565C0;
+        --light-gray: #F5F5F5;
+        --dark-gray: #424242;
+        --white: #FFFFFF;
+        --red: #D32F2F;
+        --success-green: #4CAF50;
+        --warning-orange: #FF9800;
+        --info-blue: #2196F3;
+    }
+    
+    /* Main app styling */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+    
+    /* Custom header */
+    .main-header {
+        background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-blue) 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .main-header h1 {
+        color: var(--white);
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        font-size: 2.5rem;
+        margin: 0;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .main-header p {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1.1rem;
+        margin: 0.5rem 0 0 0;
+        font-weight: 500;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: var(--light-gray);
+        border-right: 3px solid var(--primary-green);
+    }
+    
+    .css-1d391kg .css-10trblm {
+        color: var(--dark-gray);
+        font-weight: 600;
+    }
+    
+    /* Metric cards */
+    [data-testid="metric-container"] {
+        background-color: var(--white);
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    [data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Edge range specific colors */
+    .low-edge { border-left: 4px solid #9E9E9E; }
+    .mid-edge { border-left: 4px solid var(--info-blue); }
+    .high-edge { border-left: 4px solid var(--warning-orange); }
+    .extreme-edge { border-left: 4px solid var(--red); }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: var(--light-gray);
+        border-radius: 8px;
+        padding: 4px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        background-color: transparent;
+        border-radius: 6px;
+        color: var(--dark-gray);
+        font-weight: 500;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: var(--primary-green) !important;
+        color: var(--white) !important;
+    }
+    
+    /* Dataframe styling */
+    .stDataFrame {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Info/warning/error styling */
+    .stAlert {
+        border-radius: 8px;
+        border: none;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .stAlert[data-baseweb="notification"] {
+        background-color: var(--info-blue);
+        color: var(--white);
+    }
+    
+    /* Button styling */
+    .stSelectbox > div > div {
+        border-radius: 6px;
+        border: 2px solid #e0e0e0;
+        background-color: var(--white);
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .stSelectbox > div > div:focus-within {
+        border-color: var(--primary-green);
+        box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.2);
+    }
+    
+    /* Football-themed accents */
+    .football-accent {
+        display: inline-block;
+        background: linear-gradient(45deg, #8B4513, #D2691E);
+        width: 20px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: middle;
+    }
+    
+    /* Responsive improvements */
+    @media (max-width: 768px) {
+        .main-header h1 {
+            font-size: 2rem;
+        }
+        
+        .main-header p {
+            font-size: 1rem;
+        }
+        
+        .main .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: var(--light-gray);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: var(--primary-green);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--dark-blue);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # Load configuration from Streamlit secrets
 @st.cache_data
 def load_config():
@@ -260,27 +452,52 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
         
         # Display predictions table
         if not filtered_df.empty:
-            # Display edge range summary
+            # Display edge range summary with enhanced styling
             if 'Edge_Range' in filtered_df.columns:
+                st.markdown("### 🎯 Edge Distribution")
                 col1, col2, col3, col4 = st.columns(4)
                 edge_counts = filtered_df['Edge_Range'].value_counts()
                 
                 with col1:
                     low_count = edge_counts.get("Low Edge (0-1.5)", 0)
-                    st.metric("Low Edge", low_count)
+                    st.markdown("""
+                    <div class="low-edge" style="padding: 1rem; border-radius: 8px; background: white; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; color: #666;">⚪ Low Edge</h4>
+                        <h2 style="margin: 0.5rem 0 0 0; color: #333;">{}</h2>
+                        <p style="margin: 0; font-size: 0.9rem; color: #888;">0-1.5 points</p>
+                    </div>
+                    """.format(low_count), unsafe_allow_html=True)
                     
                 with col2:
                     mid_count = edge_counts.get("Mid Edge (1.5-3)", 0)
-                    st.metric("Mid Edge", mid_count)
+                    st.markdown("""
+                    <div class="mid-edge" style="padding: 1rem; border-radius: 8px; background: white; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; color: #2196F3;">🔵 Mid Edge</h4>
+                        <h2 style="margin: 0.5rem 0 0 0; color: #333;">{}</h2>
+                        <p style="margin: 0; font-size: 0.9rem; color: #888;">1.5-3 points</p>
+                    </div>
+                    """.format(mid_count), unsafe_allow_html=True)
                     
                 with col3:
                     high_count = edge_counts.get("High Edge (3-5)", 0)
-                    st.metric("High Edge", high_count)
+                    st.markdown("""
+                    <div class="high-edge" style="padding: 1rem; border-radius: 8px; background: white; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; color: #FF9800;">🟡 High Edge</h4>
+                        <h2 style="margin: 0.5rem 0 0 0; color: #333;">{}</h2>
+                        <p style="margin: 0; font-size: 0.9rem; color: #888;">3-5 points</p>
+                    </div>
+                    """.format(high_count), unsafe_allow_html=True)
                     
                 with col4:
                     very_high_extreme_count = (edge_counts.get("Very High Edge (5-8)", 0) + 
                                              edge_counts.get("Extreme Edge (8+)", 0))
-                    st.metric("Very High/Extreme", very_high_extreme_count)
+                    st.markdown("""
+                    <div class="extreme-edge" style="padding: 1rem; border-radius: 8px; background: white; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; color: #D32F2F;">🔴 Extreme</h4>
+                        <h2 style="margin: 0.5rem 0 0 0; color: #333;">{}</h2>
+                        <p style="margin: 0; font-size: 0.9rem; color: #888;">5+ points</p>
+                    </div>
+                    """.format(very_high_extreme_count), unsafe_allow_html=True)
             
             # Clean up columns for better display
             display_df = filtered_df.copy()
@@ -351,10 +568,16 @@ def show_model_analysis_tab():
     """)
 
 def main():
-    # Header
-    st.title("🏈 NCAA Football Predictions Dashboard")
-    st.markdown("*Public Beta - Powered by 4-Feature Linear Regression (1.5 MAE)*")
-    st.markdown("---")
+    # Apply custom CSS styling
+    inject_custom_css()
+    
+    # Custom professional header
+    st.markdown("""
+    <div class="main-header">
+        <h1><span class="football-accent"></span>NCAA Football Predictions Dashboard</h1>
+        <p>Powered by 4-Feature Linear Regression Model | 1.5 MAE Performance | Live Data Integration</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Check if secrets are configured
     try:
