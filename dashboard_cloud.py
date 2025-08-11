@@ -390,14 +390,29 @@ def display_games_as_cards(df):
 
 def create_game_card(row):
     """Create an individual game prediction card"""
-    # Extract data
-    home_team = row.get('Home Team', 'Home')
-    away_team = row.get('Away Team', 'Away')
-    my_prediction = pd.to_numeric(row.get('My Prediction', 0), errors='coerce') or 0
-    vegas_line = pd.to_numeric(row.get('Vegas Line', 0), errors='coerce') or 0
+    # Extract data - try multiple possible column names
+    home_team = (row.get('Home Team') or row.get('home_team') or 
+                 row.get('Home') or row.get('HOME_TEAM') or 'Home')
+    away_team = (row.get('Away Team') or row.get('away_team') or 
+                 row.get('Away') or row.get('AWAY_TEAM') or 'Away')
+    
+    # Try different possible column names for predictions
+    my_prediction = (row.get('My Prediction') or row.get('my_prediction') or 
+                     row.get('Prediction') or row.get('prediction') or 0)
+    my_prediction = pd.to_numeric(my_prediction, errors='coerce') or 0
+    
+    # Try different possible column names for vegas line
+    vegas_line = (row.get('Vegas Line') or row.get('vegas_line') or 
+                  row.get('Line') or row.get('line') or 0)
+    vegas_line = pd.to_numeric(vegas_line, errors='coerce') or 0
+    
     edge = pd.to_numeric(row.get('Edge', 0), errors='coerce') or 0
     edge_range = row.get('Edge_Range', 'Unknown')
     edge_direction = row.get('Edge_Direction', 'Even')
+    
+    # Debug: Print actual column names and first few values
+    # Uncomment this line if you need to debug column names
+    # st.write(f"Debug - Available columns: {list(row.keys()) if hasattr(row, 'keys') else 'N/A'}")
     
     # Get styling based on edge
     edge_color, edge_icon, edge_label = get_edge_color_and_icon(edge)
@@ -678,10 +693,15 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
             # Display games as interactive cards instead of table
             st.markdown("### 🏈 Game Predictions")
             
-            # Show table toggle for users who prefer it
+            # Show table toggle and debug info
             col1, col2 = st.columns([3, 1])
             with col2:
                 show_table = st.checkbox("Show as table", value=False)
+            
+            # Debug: Show column names to help troubleshoot
+            with st.expander("🔍 Debug Info (Column Names)"):
+                st.write("Available columns in your data:")
+                st.write(list(display_df.columns))
             
             if show_table:
                 # Traditional table view
