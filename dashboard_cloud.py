@@ -714,10 +714,18 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
             with col2:
                 show_table = st.checkbox("Show as table", value=False)
             
-            # Debug: Show column names to help troubleshoot
-            with st.expander("🔍 Debug Info (Column Names)"):
+            # Debug: Show column names and sample data
+            with st.expander("🔍 Debug Info"):
                 st.write("Available columns in your data:")
                 st.write(list(display_df.columns))
+                st.write("Sample raw data (first row):")
+                if not display_df.empty:
+                    first_row = display_df.iloc[0]
+                    for col in display_df.columns:
+                        value = first_row[col]
+                        st.write(f"{col}: '{value}' (type: {type(value).__name__})")
+                else:
+                    st.write("No data available")
             
             if show_table:
                 # Traditional table view
