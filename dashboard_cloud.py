@@ -390,29 +390,23 @@ def display_games_as_cards(df):
 
 def create_game_card(row):
     """Create an individual game prediction card"""
-    # Extract data - try multiple possible column names
-    home_team = (row.get('Home Team') or row.get('home_team') or 
-                 row.get('Home') or row.get('HOME_TEAM') or 'Home')
-    away_team = (row.get('Away Team') or row.get('away_team') or 
-                 row.get('Away') or row.get('AWAY_TEAM') or 'Away')
+    # Extract teams from Matchup field (format: "Away @ Home")
+    matchup = row.get('Matchup', 'Away @ Home')
+    if '@' in matchup:
+        teams = matchup.split(' @ ')
+        away_team = teams[0].strip() if len(teams) > 0 else 'Away'
+        home_team = teams[1].strip() if len(teams) > 1 else 'Home'
+    else:
+        # Fallback if format is different
+        away_team = 'Away'
+        home_team = 'Home'
     
-    # Try different possible column names for predictions
-    my_prediction = (row.get('My Prediction') or row.get('my_prediction') or 
-                     row.get('Prediction') or row.get('prediction') or 0)
-    my_prediction = pd.to_numeric(my_prediction, errors='coerce') or 0
-    
-    # Try different possible column names for vegas line
-    vegas_line = (row.get('Vegas Line') or row.get('vegas_line') or 
-                  row.get('Line') or row.get('line') or 0)
-    vegas_line = pd.to_numeric(vegas_line, errors='coerce') or 0
-    
+    # Extract numeric data
+    my_prediction = pd.to_numeric(row.get('My Prediction', 0), errors='coerce') or 0
+    vegas_line = pd.to_numeric(row.get('Vegas Line', 0), errors='coerce') or 0
     edge = pd.to_numeric(row.get('Edge', 0), errors='coerce') or 0
     edge_range = row.get('Edge_Range', 'Unknown')
     edge_direction = row.get('Edge_Direction', 'Even')
-    
-    # Debug: Print actual column names and first few values
-    # Uncomment this line if you need to debug column names
-    # st.write(f"Debug - Available columns: {list(row.keys()) if hasattr(row, 'keys') else 'N/A'}")
     
     # Get styling based on edge
     edge_color, edge_icon, edge_label = get_edge_color_and_icon(edge)
@@ -535,9 +529,15 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
         col1, col2, col3 = st.columns([1, 1, 2])
         
         with col1:
-            if 'Home Team' in predictions_df.columns:
-                teams = sorted(set(list(predictions_df.get('Home Team', [])) + list(predictions_df.get('Away Team', []))))
-                selected_team = st.selectbox("Filter by Team", ["All Teams"] + teams)
+            # Extract unique teams from Matchup column
+            if 'Matchup' in predictions_df.columns:
+                all_teams = []
+                for matchup in predictions_df['Matchup'].dropna():
+                    if '@' in str(matchup):
+                        teams = str(matchup).split(' @ ')
+                        all_teams.extend([team.strip() for team in teams])
+                unique_teams = sorted(set(all_teams))
+                selected_team = st.selectbox("Filter by Team", ["All Teams"] + unique_teams)
             else:
                 selected_team = "All Teams"
         
@@ -565,10 +565,10 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
         filtered_df = predictions_df.copy()
         
         if selected_team != "All Teams":
-            if 'Home Team' in predictions_df.columns and 'Away Team' in predictions_df.columns:
+            if 'Matchup' in filtered_df.columns:
+                # Filter by checking if team name appears in Matchup
                 filtered_df = filtered_df[
-                    (filtered_df['Home Team'] == selected_team) | 
-                    (filtered_df['Away Team'] == selected_team)
+                    filtered_df['Matchup'].str.contains(selected_team, na=False)
                 ]
         
         # Filter by edge range
@@ -607,8 +607,6 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
                 elif sort_by == "Alphabetical":
                     if 'Matchup' in filtered_df.columns:
                         filtered_df = filtered_df.sort_values('Matchup')
-                    elif 'Home Team' in filtered_df.columns:
-                        filtered_df = filtered_df.sort_values('Home Team')
                             
             except Exception as e:
                 st.warning(f"Sorting failed: {str(e)}")
