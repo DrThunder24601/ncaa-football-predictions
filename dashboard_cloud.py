@@ -334,6 +334,154 @@ def add_edge_analysis(predictions_df):
     
     return df
 
+def get_edge_color_and_icon(edge_value):
+    """Get color and icon based on edge value"""
+    if pd.isna(edge_value):
+        return "#999", "⚪", "Unknown"
+    
+    abs_edge = abs(edge_value)
+    
+    if abs_edge <= 1.5:
+        return "#9E9E9E", "⚪", "Low"
+    elif abs_edge <= 3.0:
+        return "#2196F3", "🔵", "Mid"
+    elif abs_edge <= 5.0:
+        return "#FF9800", "🟡", "High"
+    elif abs_edge <= 8.0:
+        return "#D32F2F", "🔴", "V.High"
+    else:
+        return "#AD1457", "🟣", "Extreme"
+
+def get_confidence_bar(edge_value):
+    """Generate confidence bar HTML based on edge value"""
+    abs_edge = abs(edge_value) if not pd.isna(edge_value) else 0
+    
+    # Scale confidence (0-100%) based on absolute edge
+    confidence = min(abs_edge * 15, 100)  # 0-1.5 = 0-22%, 3+ = 45%+
+    
+    color = "#4CAF50" if confidence > 60 else "#FF9800" if confidence > 30 else "#9E9E9E"
+    
+    return f"""
+    <div style="background: #f0f0f0; border-radius: 10px; height: 6px; margin: 5px 0;">
+        <div style="background: {color}; height: 6px; border-radius: 10px; width: {confidence}%;"></div>
+    </div>
+    <small style="color: #666;">Confidence: {confidence:.0f}%</small>
+    """
+
+def display_games_as_cards(df):
+    """Display games as interactive cards"""
+    if df.empty:
+        st.info("No games to display")
+        return
+    
+    # Display cards in rows of 2
+    for i in range(0, len(df), 2):
+        col1, col2 = st.columns(2)
+        
+        # First card
+        with col1:
+            if i < len(df):
+                create_game_card(df.iloc[i])
+        
+        # Second card
+        with col2:
+            if i + 1 < len(df):
+                create_game_card(df.iloc[i + 1])
+
+def create_game_card(row):
+    """Create an individual game prediction card"""
+    # Extract data
+    home_team = row.get('Home Team', 'Home')
+    away_team = row.get('Away Team', 'Away')
+    my_prediction = row.get('My Prediction', 0)
+    vegas_line = row.get('Vegas Line', 0)
+    edge = row.get('Edge', 0)
+    edge_range = row.get('Edge_Range', 'Unknown')
+    edge_direction = row.get('Edge_Direction', 'Even')
+    
+    # Get styling based on edge
+    edge_color, edge_icon, edge_label = get_edge_color_and_icon(edge)
+    confidence_bar = get_confidence_bar(edge)
+    
+    # Determine prediction direction
+    if my_prediction > 0:
+        prediction_text = f"{home_team} by {abs(my_prediction):.1f}"
+        prediction_color = "#2E7D32"
+    elif my_prediction < 0:
+        prediction_text = f"{away_team} by {abs(my_prediction):.1f}"
+        prediction_color = "#1565C0"
+    else:
+        prediction_text = "Even"
+        prediction_color = "#666"
+    
+    # Create the card
+    card_html = f"""
+    <div style="
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid {edge_color};
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.15)'"
+       onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.1)'">
+        
+        <!-- Edge indicator -->
+        <div style="position: absolute; top: 10px; right: 15px; background: {edge_color}; color: white; 
+                    padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+            {edge_icon} {edge_label}
+        </div>
+        
+        <!-- Teams -->
+        <div style="margin-bottom: 1rem;">
+            <h3 style="margin: 0; color: #333; font-size: 1.2rem; font-weight: 600;">
+                {away_team} @ {home_team}
+            </h3>
+            <p style="margin: 0.3rem 0 0 0; color: #666; font-size: 0.9rem;">
+                {edge_range} • {edge_direction}
+            </p>
+        </div>
+        
+        <!-- Predictions -->
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+            <div style="text-align: center; flex: 1;">
+                <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">My Prediction</p>
+                <p style="margin: 0.2rem 0 0 0; font-size: 1.3rem; font-weight: 700; color: {prediction_color};">
+                    {prediction_text}
+                </p>
+            </div>
+            
+            <div style="width: 1px; background: #e0e0e0; margin: 0 1rem;"></div>
+            
+            <div style="text-align: center; flex: 1;">
+                <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Vegas Line</p>
+                <p style="margin: 0.2rem 0 0 0; font-size: 1.1rem; font-weight: 600; color: #333;">
+                    {vegas_line:+.1f}
+                </p>
+            </div>
+        </div>
+        
+        <!-- Edge info -->
+        <div style="background: #f8f9fa; padding: 0.8rem; border-radius: 8px; margin-bottom: 0.8rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; color: #666;">Edge:</span>
+                <span style="font-size: 1rem; font-weight: 600; color: {edge_color};">
+                    {edge:+.1f} points
+                </span>
+            </div>
+        </div>
+        
+        <!-- Confidence indicator -->
+        <div>
+            {confidence_bar}
+        </div>
+    </div>
+    """
+    
+    st.markdown(card_html, unsafe_allow_html=True)
+
 def show_predictions_tab(predictions_df, key_features, metrics_info):
     """Show the Live Predictions tab"""
     # Sidebar
@@ -527,8 +675,20 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
             for col in numeric_columns:
                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce').round(2)
             
-            # Show data
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            # Display games as interactive cards instead of table
+            st.markdown("### 🏈 Game Predictions")
+            
+            # Show table toggle for users who prefer it
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                show_table = st.checkbox("Show as table", value=False)
+            
+            if show_table:
+                # Traditional table view
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            else:
+                # Card-based view
+                display_games_as_cards(display_df)
         else:
             st.warning("🔍 No predictions match the current filters")
     else:
