@@ -393,9 +393,9 @@ def create_game_card(row):
     # Extract data
     home_team = row.get('Home Team', 'Home')
     away_team = row.get('Away Team', 'Away')
-    my_prediction = row.get('My Prediction', 0)
-    vegas_line = row.get('Vegas Line', 0)
-    edge = row.get('Edge', 0)
+    my_prediction = pd.to_numeric(row.get('My Prediction', 0), errors='coerce') or 0
+    vegas_line = pd.to_numeric(row.get('Vegas Line', 0), errors='coerce') or 0
+    edge = pd.to_numeric(row.get('Edge', 0), errors='coerce') or 0
     edge_range = row.get('Edge_Range', 'Unknown')
     edge_direction = row.get('Edge_Direction', 'Even')
     
