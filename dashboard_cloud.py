@@ -401,10 +401,28 @@ def create_game_card(row):
         away_team = 'Away'
         home_team = 'Home'
     
-    # Extract numeric data
-    my_prediction = pd.to_numeric(row.get('My Prediction', 0), errors='coerce') or 0
-    vegas_line = pd.to_numeric(row.get('Vegas Line', 0), errors='coerce') or 0
-    edge = pd.to_numeric(row.get('Edge', 0), errors='coerce') or 0
+    # Extract and ensure numeric data
+    try:
+        my_prediction = float(pd.to_numeric(row.get('My Prediction', 0), errors='coerce'))
+        if pd.isna(my_prediction):
+            my_prediction = 0.0
+    except:
+        my_prediction = 0.0
+        
+    try:
+        vegas_line = float(pd.to_numeric(row.get('Vegas Line', 0), errors='coerce'))
+        if pd.isna(vegas_line):
+            vegas_line = 0.0
+    except:
+        vegas_line = 0.0
+        
+    try:
+        edge = float(pd.to_numeric(row.get('Edge', 0), errors='coerce'))
+        if pd.isna(edge):
+            edge = 0.0
+    except:
+        edge = 0.0
+        
     edge_range = row.get('Edge_Range', 'Unknown')
     edge_direction = row.get('Edge_Direction', 'Even')
     
@@ -412,7 +430,7 @@ def create_game_card(row):
     edge_color, edge_icon, edge_label = get_edge_color_and_icon(edge)
     confidence_bar = get_confidence_bar(edge)
     
-    # Determine prediction direction
+    # Determine prediction direction (my_prediction is already float)
     if my_prediction > 0:
         prediction_text = f"{home_team} by {abs(my_prediction):.1f}"
         prediction_color = "#2E7D32"
