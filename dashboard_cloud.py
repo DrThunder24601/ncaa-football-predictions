@@ -206,7 +206,7 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
             ]
             sort_by = st.selectbox("Sort by", sort_options)
     
-        # Filter and display data (simplified for cloud deployment)
+        # Filter and display data with proper sorting
         filtered_df = predictions_df.copy()
         
         if selected_team != "All Teams":
@@ -219,6 +219,44 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
         # Filter by edge range
         if selected_edge_range != "All Ranges" and 'Edge_Range' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['Edge_Range'] == selected_edge_range]
+        
+        # Apply sorting
+        if not filtered_df.empty and sort_by != "Default":
+            try:
+                # Define edge range priority for sorting
+                edge_range_priority = {
+                    "Low Edge (0-1.5)": 1,
+                    "Mid Edge (1.5-3)": 2,
+                    "High Edge (3-5)": 3,
+                    "Very High Edge (5-8)": 4,
+                    "Extreme Edge (8+)": 5,
+                    "Unknown": 6
+                }
+                
+                # Apply sorting based on selection
+                if sort_by == "Low to High Edge":
+                    # Sort from smallest to largest edge ranges
+                    if 'Edge_Range' in filtered_df.columns:
+                        filtered_df['Range_Priority'] = filtered_df['Edge_Range'].map(edge_range_priority)
+                        filtered_df = filtered_df.sort_values(['Range_Priority', 'Abs_Edge'], ascending=[True, True])
+                        
+                elif sort_by == "Biggest Edge (Abs)":
+                    filtered_df = filtered_df.sort_values('Abs_Edge', ascending=False)
+                    
+                elif sort_by == "My Favors Most":
+                    filtered_df = filtered_df.sort_values('Edge', ascending=False) 
+                    
+                elif sort_by == "Vegas Favors Most":
+                    filtered_df = filtered_df.sort_values('Edge', ascending=True)
+                    
+                elif sort_by == "Alphabetical":
+                    if 'Matchup' in filtered_df.columns:
+                        filtered_df = filtered_df.sort_values('Matchup')
+                    elif 'Home Team' in filtered_df.columns:
+                        filtered_df = filtered_df.sort_values('Home Team')
+                            
+            except Exception as e:
+                st.warning(f"Sorting failed: {str(e)}")
         
         # Display predictions table
         if not filtered_df.empty:
@@ -244,8 +282,36 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
                                              edge_counts.get("Extreme Edge (8+)", 0))
                     st.metric("Very High/Extreme", very_high_extreme_count)
             
+            # Clean up columns for better display
+            display_df = filtered_df.copy()
+            
+            # Add info about current sort and filters
+            filter_info = []
+            if sort_by != "Default":
+                filter_info.append(f"Sorted by: {sort_by}")
+            if selected_edge_range != "All Ranges":
+                filter_info.append(f"Edge Range: {selected_edge_range}")
+            if selected_team != "All Teams":
+                filter_info.append(f"Team: {selected_team}")
+                
+            if filter_info:
+                st.info(f"📊 {len(display_df)} games | " + " | ".join(filter_info))
+            else:
+                st.info(f"📊 Showing {len(display_df)} total predictions")
+            
+            # Remove helper columns from display
+            columns_to_hide = ['Range_Priority', 'Abs_Edge']
+            for col in columns_to_hide:
+                if col in display_df.columns:
+                    display_df = display_df.drop(columns=[col])
+            
+            # Round numeric columns
+            numeric_columns = display_df.select_dtypes(include=['number']).columns
+            for col in numeric_columns:
+                display_df[col] = pd.to_numeric(display_df[col], errors='coerce').round(2)
+            
             # Show data
-            st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
         else:
             st.warning("🔍 No predictions match the current filters")
     else:
