@@ -390,9 +390,13 @@ def display_games_as_cards(df):
 
 def create_game_card(row):
     """Create an individual game prediction card"""
-    # Extract teams from Matchup field (format: "Away @ Home")
-    matchup = row.get('Matchup', 'Away @ Home')
-    if '@' in matchup:
+    # Extract teams from Matchup field (format: "Away vs Home" or "Away @ Home")
+    matchup = row.get('Matchup', 'Away vs Home')
+    if ' vs ' in matchup:
+        teams = matchup.split(' vs ')
+        away_team = teams[0].strip() if len(teams) > 0 else 'Away'
+        home_team = teams[1].strip() if len(teams) > 1 else 'Home'
+    elif ' @ ' in matchup:
         teams = matchup.split(' @ ')
         away_team = teams[0].strip() if len(teams) > 0 else 'Away'
         home_team = teams[1].strip() if len(teams) > 1 else 'Home'
@@ -409,12 +413,22 @@ def create_game_card(row):
     except:
         my_prediction = 0.0
         
-    try:
-        vegas_line = float(pd.to_numeric(row.get('Vegas Line', 0), errors='coerce'))
-        if pd.isna(vegas_line):
-            vegas_line = 0.0
-    except:
+    # Handle Vegas Line - might be "N/A" string
+    vegas_line_raw = row.get('Vegas Line', '0')
+    if vegas_line_raw == 'N/A' or vegas_line_raw == 'n/a' or vegas_line_raw == '':
         vegas_line = 0.0
+        vegas_line_display = "N/A"
+    else:
+        try:
+            vegas_line = float(pd.to_numeric(vegas_line_raw, errors='coerce'))
+            if pd.isna(vegas_line):
+                vegas_line = 0.0
+                vegas_line_display = "N/A"
+            else:
+                vegas_line_display = f"{vegas_line:+.1f}"
+        except:
+            vegas_line = 0.0
+            vegas_line_display = "N/A"
         
     try:
         edge = float(pd.to_numeric(row.get('Edge', 0), errors='coerce'))
@@ -485,7 +499,7 @@ def create_game_card(row):
             <div style="text-align: center; flex: 1;">
                 <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Vegas Line</p>
                 <p style="margin: 0.2rem 0 0 0; font-size: 1.1rem; font-weight: 600; color: #333;">
-                    {vegas_line:+.1f}
+                    {vegas_line_display}
                 </p>
             </div>
         </div>
@@ -551,7 +565,10 @@ def show_predictions_tab(predictions_df, key_features, metrics_info):
             if 'Matchup' in predictions_df.columns:
                 all_teams = []
                 for matchup in predictions_df['Matchup'].dropna():
-                    if '@' in str(matchup):
+                    if ' vs ' in str(matchup):
+                        teams = str(matchup).split(' vs ')
+                        all_teams.extend([team.strip() for team in teams])
+                    elif ' @ ' in str(matchup):
                         teams = str(matchup).split(' @ ')
                         all_teams.extend([team.strip() for team in teams])
                 unique_teams = sorted(set(all_teams))
