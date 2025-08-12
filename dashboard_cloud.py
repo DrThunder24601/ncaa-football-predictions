@@ -241,13 +241,12 @@ def get_confidence_bar(edge_value):
         return '<small style="color: #666;">Confidence: 0%</small>'
 
 def create_simple_game_card(row):
-    """Create a simple game card with bulletproof data handling"""
+    """Create a game card using Streamlit native components"""
     # Safely extract all values
     matchup = safe_str(row.get('Matchup', 'Game TBD'))
     my_pred_raw = safe_str(row.get('My Prediction', '0'))
     vegas_raw = safe_str(row.get('Vegas Line', 'N/A'))
     edge_raw = safe_str(row.get('Edge', '0'))
-    edge_range = safe_str(row.get('Edge_Range', 'Unknown'))
     
     # Parse teams
     if ' vs ' in matchup:
@@ -261,20 +260,16 @@ def create_simple_game_card(row):
     my_pred_float = safe_float(my_pred_raw)
     if my_pred_float > 0:
         pred_text = f"{home_team} by {my_pred_float:.1f}"
-        pred_color = "#2E7D32"
     elif my_pred_float < 0:
         pred_text = f"{away_team} by {abs(my_pred_float):.1f}"
-        pred_color = "#1565C0"
     else:
         pred_text = "Even"
-        pred_color = "#666"
     
     # Handle Vegas Line
     vegas_display = vegas_raw if vegas_raw in ['N/A', 'n/a', ''] else vegas_raw
     
     # Handle Edge - extract number from text like "Bet Home (+4.4)"
     if "(" in edge_raw and ")" in edge_raw:
-        # Extract number from parentheses
         try:
             start = edge_raw.find("(") + 1
             end = edge_raw.find(")")
@@ -288,75 +283,50 @@ def create_simple_game_card(row):
         edge_float = safe_float(edge_raw)
         edge_display = f"{edge_float:+.1f} points" if edge_float != 0 else "0.0 points"
     
-    # Get styling based on edge
-    edge_color, edge_icon, edge_label = get_edge_color_and_icon(edge_float)
-    confidence_bar = get_confidence_bar(edge_float)
+    # Get edge category
+    abs_edge = abs(edge_float)
+    if abs_edge >= 5.0:
+        edge_category = "🔴 Extreme"
+        edge_color = "red"
+    elif abs_edge >= 3.0:
+        edge_category = "🟡 High"
+        edge_color = "orange"
+    elif abs_edge >= 1.5:
+        edge_category = "🔵 Mid"
+        edge_color = "blue"
+    else:
+        edge_category = "⚪ Low"
+        edge_color = "gray"
     
-    # Enhanced interactive card HTML
-    st.markdown(f"""
-    <div style="
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        border-left: 4px solid {edge_color};
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        position: relative;
-    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.15)'"
-       onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.1)'">
+    # Create card using Streamlit components
+    with st.container():
+        # Header with edge indicator
+        col_title, col_edge = st.columns([3, 1])
+        with col_title:
+            st.subheader(f"{away_team} vs {home_team}")
+            st.caption(edge_raw)
+        with col_edge:
+            if edge_color == "red":
+                st.error(edge_category)
+            elif edge_color == "orange":
+                st.warning(edge_category)
+            elif edge_color == "blue":
+                st.info(edge_category)
+            else:
+                st.info(edge_category)
         
-        <!-- Edge indicator -->
-        <div style="position: absolute; top: 10px; right: 15px; background: {edge_color}; color: white; 
-                    padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
-            {edge_icon} {edge_label}
-        </div>
+        # Predictions section
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("My Prediction", pred_text)
+        with col2:
+            st.metric("Vegas Line", vegas_display)
         
-        <!-- Teams -->
-        <div style="margin-bottom: 1rem;">
-            <h3 style="margin: 0; color: #333; font-size: 1.2rem; font-weight: 600;">
-                {away_team} vs {home_team}
-            </h3>
-            <p style="margin: 0.3rem 0 0 0; color: #666; font-size: 0.9rem;">
-                {edge_raw}
-            </p>
-        </div>
+        # Edge info
+        st.metric("Edge", edge_display)
         
-        <!-- Predictions -->
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-            <div style="text-align: center; flex: 1;">
-                <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">My Prediction</p>
-                <p style="margin: 0.2rem 0 0 0; font-size: 1.3rem; font-weight: 700; color: {pred_color};">
-                    {pred_text}
-                </p>
-            </div>
-            
-            <div style="width: 1px; background: #e0e0e0; margin: 0 1rem;"></div>
-            
-            <div style="text-align: center; flex: 1;">
-                <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Vegas Line</p>
-                <p style="margin: 0.2rem 0 0 0; font-size: 1.1rem; font-weight: 600; color: #333;">
-                    {vegas_display}
-                </p>
-            </div>
-        </div>
-        
-        <!-- Edge info -->
-        <div style="background: #f8f9fa; padding: 0.8rem; border-radius: 8px; margin-bottom: 0.8rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.8rem; color: #666;">Edge:</span>
-                <span style="font-size: 1rem; font-weight: 600; color: {edge_color};">
-                    {edge_display}
-                </span>
-            </div>
-        </div>
-        
-        <!-- Confidence indicator -->
-        <div>
-            {confidence_bar}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        # Add some spacing
+        st.markdown("---")
 
 def display_games_as_cards(df):
     """Display games as interactive cards in 2-column layout"""
