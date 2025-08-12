@@ -169,21 +169,35 @@ def create_simple_game_card(row):
     else:
         away_team, home_team = 'Away', 'Home'
     
-    # Handle My Prediction
+    # Handle My Prediction 
     my_pred_float = safe_float(my_pred_raw)
     if my_pred_float > 0:
         pred_text = f"{home_team} by {my_pred_float:.1f}"
+        pred_color = "#2E7D32"
     elif my_pred_float < 0:
         pred_text = f"{away_team} by {abs(my_pred_float):.1f}"
+        pred_color = "#1565C0"
     else:
         pred_text = "Even"
+        pred_color = "#666"
     
     # Handle Vegas Line
     vegas_display = vegas_raw if vegas_raw in ['N/A', 'n/a', ''] else vegas_raw
     
-    # Handle Edge
-    edge_float = safe_float(edge_raw)
-    edge_display = f"{edge_float:+.1f}" if edge_float != 0 else "0.0"
+    # Handle Edge - extract number from text like "Bet Home (+4.4)"
+    if "(" in edge_raw and ")" in edge_raw:
+        # Extract number from parentheses
+        try:
+            start = edge_raw.find("(") + 1
+            end = edge_raw.find(")")
+            edge_num_str = edge_raw[start:end].replace("+", "").replace(" ", "")
+            edge_float = safe_float(edge_num_str)
+            edge_display = f"{edge_float:+.1f} points"
+        except:
+            edge_display = edge_raw
+    else:
+        edge_float = safe_float(edge_raw)
+        edge_display = f"{edge_float:+.1f} points" if edge_float != 0 else "0.0 points"
     
     # Simple card HTML
     st.markdown(f"""
@@ -197,7 +211,8 @@ def create_simple_game_card(row):
         <h4>{away_team} vs {home_team}</h4>
         <p><strong>My Prediction:</strong> {pred_text}</p>
         <p><strong>Vegas Line:</strong> {vegas_display}</p>
-        <p><strong>Edge:</strong> {edge_display} points</p>
+        <p><strong>Edge:</strong> {edge_display}</p>
+        <p><strong>Raw Edge Data:</strong> {edge_raw}</p>
         <p><strong>Category:</strong> {edge_range}</p>
     </div>
     """, unsafe_allow_html=True)
