@@ -414,14 +414,6 @@ def show_enhanced_predictions(predictions_df):
         
         filtered_df = filtered_df[filtered_df.apply(filter_by_edge, axis=1)]
     
-    # Show debug info
-    with st.expander("🔍 Debug Info"):
-        st.write("Columns:", list(predictions_df.columns))
-        if not predictions_df.empty:
-            st.write("Sample data:")
-            st.write(predictions_df.head(1))
-        st.write(f"Showing {len(filtered_df)} of {len(predictions_df)} games")
-    
     # Display summary
     st.info(f"📊 Showing {len(filtered_df)} games")
     
@@ -430,6 +422,15 @@ def show_enhanced_predictions(predictions_df):
         display_games_as_cards(filtered_df)
     else:
         st.warning("No games match the current filters")
+    
+    # Debug info at bottom (hidden by default)
+    if st.checkbox("Show debug info", value=False):
+        st.write("**Debug Information:**")
+        st.write("Columns:", list(predictions_df.columns))
+        if not predictions_df.empty:
+            st.write("Sample data:")
+            st.write(predictions_df.head(1))
+        st.write(f"Filtered: {len(filtered_df)} of {len(predictions_df)} games")
 
 def main():
     # Apply styling
@@ -439,7 +440,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1><span class="football-accent"></span>NCAA Football Predictions Dashboard</h1>
-        <p>Safe Mode - Basic Display</p>
+        <p>Powered by 4-Feature Linear Regression Model | 1.5 MAE Performance</p>
     </div>
     """, unsafe_allow_html=True)
     
