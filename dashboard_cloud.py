@@ -71,6 +71,55 @@ def inject_custom_css():
         font-weight: 500;
     }
     
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: var(--light-gray);
+        border-right: 3px solid var(--primary-green);
+    }
+    
+    /* Metric cards */
+    [data-testid="metric-container"] {
+        background-color: var(--white);
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    [data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Edge range specific colors */
+    .low-edge { border-left: 4px solid #9E9E9E; }
+    .mid-edge { border-left: 4px solid var(--info-blue); }
+    .high-edge { border-left: 4px solid var(--warning-orange); }
+    .extreme-edge { border-left: 4px solid var(--red); }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: var(--light-gray);
+        border-radius: 8px;
+        padding: 4px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        background-color: transparent;
+        border-radius: 6px;
+        color: var(--dark-gray);
+        font-weight: 500;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: var(--primary-green) !important;
+        color: var(--white) !important;
+    }
+    
     /* Football-themed accents */
     .football-accent {
         display: inline-block;
@@ -81,6 +130,11 @@ def inject_custom_css():
         margin-right: 8px;
         vertical-align: middle;
     }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
     
     """, unsafe_allow_html=True)
@@ -152,6 +206,40 @@ def safe_str(value, default=""):
     except:
         return default
 
+def get_edge_color_and_icon(edge_value):
+    """Get color and icon based on edge value"""
+    try:
+        abs_edge = abs(float(edge_value))
+        
+        if abs_edge <= 1.5:
+            return "#9E9E9E", "⚪", "Low"
+        elif abs_edge <= 3.0:
+            return "#2196F3", "🔵", "Mid"
+        elif abs_edge <= 5.0:
+            return "#FF9800", "🟡", "High"
+        elif abs_edge <= 8.0:
+            return "#D32F2F", "🔴", "V.High"
+        else:
+            return "#AD1457", "🟣", "Extreme"
+    except:
+        return "#999", "⚪", "Unknown"
+
+def get_confidence_bar(edge_value):
+    """Generate confidence bar HTML based on edge value"""
+    try:
+        abs_edge = abs(float(edge_value))
+        confidence = min(abs_edge * 15, 100)  # 0-1.5 = 0-22%, 3+ = 45%+
+        color = "#4CAF50" if confidence > 60 else "#FF9800" if confidence > 30 else "#9E9E9E"
+        
+        return f"""
+        <div style="background: #f0f0f0; border-radius: 10px; height: 6px; margin: 5px 0;">
+            <div style="background: {color}; height: 6px; border-radius: 10px; width: {confidence}%;"></div>
+        </div>
+        <small style="color: #666;">Confidence: {confidence:.0f}%</small>
+        """
+    except:
+        return '<small style="color: #666;">Confidence: 0%</small>'
+
 def create_simple_game_card(row):
     """Create a simple game card with bulletproof data handling"""
     # Safely extract all values
@@ -195,35 +283,166 @@ def create_simple_game_card(row):
             edge_display = f"{edge_float:+.1f} points"
         except:
             edge_display = edge_raw
+            edge_float = 0
     else:
         edge_float = safe_float(edge_raw)
         edge_display = f"{edge_float:+.1f} points" if edge_float != 0 else "0.0 points"
     
-    # Simple card HTML
+    # Get styling based on edge
+    edge_color, edge_icon, edge_label = get_edge_color_and_icon(edge_float)
+    confidence_bar = get_confidence_bar(edge_float)
+    
+    # Enhanced interactive card HTML
     st.markdown(f"""
     <div style="
         background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 1rem;
+        border-radius: 12px;
+        padding: 1.5rem;
         margin-bottom: 1rem;
-    ">
-        <h4>{away_team} vs {home_team}</h4>
-        <p><strong>My Prediction:</strong> {pred_text}</p>
-        <p><strong>Vegas Line:</strong> {vegas_display}</p>
-        <p><strong>Edge:</strong> {edge_display}</p>
-        <p><strong>Raw Edge Data:</strong> {edge_raw}</p>
-        <p><strong>Category:</strong> {edge_range}</p>
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid {edge_color};
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(0, 0, 0, 0.15)'"
+       onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.1)'">
+        
+        <!-- Edge indicator -->
+        <div style="position: absolute; top: 10px; right: 15px; background: {edge_color}; color: white; 
+                    padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+            {edge_icon} {edge_label}
+        </div>
+        
+        <!-- Teams -->
+        <div style="margin-bottom: 1rem;">
+            <h3 style="margin: 0; color: #333; font-size: 1.2rem; font-weight: 600;">
+                {away_team} vs {home_team}
+            </h3>
+            <p style="margin: 0.3rem 0 0 0; color: #666; font-size: 0.9rem;">
+                {edge_raw}
+            </p>
+        </div>
+        
+        <!-- Predictions -->
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+            <div style="text-align: center; flex: 1;">
+                <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">My Prediction</p>
+                <p style="margin: 0.2rem 0 0 0; font-size: 1.3rem; font-weight: 700; color: {pred_color};">
+                    {pred_text}
+                </p>
+            </div>
+            
+            <div style="width: 1px; background: #e0e0e0; margin: 0 1rem;"></div>
+            
+            <div style="text-align: center; flex: 1;">
+                <p style="margin: 0; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Vegas Line</p>
+                <p style="margin: 0.2rem 0 0 0; font-size: 1.1rem; font-weight: 600; color: #333;">
+                    {vegas_display}
+                </p>
+            </div>
+        </div>
+        
+        <!-- Edge info -->
+        <div style="background: #f8f9fa; padding: 0.8rem; border-radius: 8px; margin-bottom: 0.8rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; color: #666;">Edge:</span>
+                <span style="font-size: 1rem; font-weight: 600; color: {edge_color};">
+                    {edge_display}
+                </span>
+            </div>
+        </div>
+        
+        <!-- Confidence indicator -->
+        <div>
+            {confidence_bar}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-def show_simple_predictions(predictions_df):
-    """Show predictions in a simple, safe format"""
-    st.header("🏈 Game Predictions")
+def display_games_as_cards(df):
+    """Display games as interactive cards in 2-column layout"""
+    if df.empty:
+        st.info("No games to display")
+        return
+    
+    # Display cards in rows of 2
+    for i in range(0, len(df), 2):
+        col1, col2 = st.columns(2)
+        
+        # First card
+        with col1:
+            if i < len(df):
+                create_simple_game_card(df.iloc[i])
+        
+        # Second card
+        with col2:
+            if i + 1 < len(df):
+                create_simple_game_card(df.iloc[i + 1])
+
+def show_enhanced_predictions(predictions_df):
+    """Show predictions with enhanced features"""
+    st.header("🏈 NCAA Football Predictions Dashboard")
     
     if predictions_df.empty:
         st.warning("No predictions data available")
         return
+    
+    # Add filters
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        # Extract unique teams from Matchup column
+        if 'Matchup' in predictions_df.columns:
+            all_teams = []
+            for matchup in predictions_df['Matchup'].dropna():
+                if ' vs ' in str(matchup):
+                    teams = str(matchup).split(' vs ')
+                    all_teams.extend([team.strip() for team in teams])
+            unique_teams = sorted(set(all_teams))
+            selected_team = st.selectbox("Filter by Team", ["All Teams"] + unique_teams)
+        else:
+            selected_team = "All Teams"
+    
+    with col2:
+        # Edge range filter based on calculated values
+        edge_options = ["All Edges", "High Edge (3+)", "Mid Edge (1.5-3)", "Low Edge (0-1.5)"]
+        selected_edge = st.selectbox("Filter by Edge", edge_options)
+    
+    with col3:
+        sort_options = ["Default", "Highest Edge", "Lowest Edge", "Alphabetical"]
+        sort_by = st.selectbox("Sort by", sort_options)
+    
+    # Filter data
+    filtered_df = predictions_df.copy()
+    
+    # Team filter
+    if selected_team != "All Teams":
+        if 'Matchup' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['Matchup'].str.contains(selected_team, na=False)]
+    
+    # Edge filter
+    if selected_edge != "All Edges":
+        def filter_by_edge(row):
+            edge_raw = str(row.get('Edge', ''))
+            try:
+                if "(" in edge_raw and ")" in edge_raw:
+                    start = edge_raw.find("(") + 1
+                    end = edge_raw.find(")")
+                    edge_num_str = edge_raw[start:end].replace("+", "").replace(" ", "")
+                    edge_val = abs(float(edge_num_str))
+                else:
+                    edge_val = abs(float(edge_raw))
+                
+                if selected_edge == "High Edge (3+)" and edge_val >= 3.0:
+                    return True
+                elif selected_edge == "Mid Edge (1.5-3)" and 1.5 <= edge_val < 3.0:
+                    return True
+                elif selected_edge == "Low Edge (0-1.5)" and edge_val < 1.5:
+                    return True
+                return False
+            except:
+                return False
+        
+        filtered_df = filtered_df[filtered_df.apply(filter_by_edge, axis=1)]
     
     # Show debug info
     with st.expander("🔍 Debug Info"):
@@ -231,12 +450,16 @@ def show_simple_predictions(predictions_df):
         if not predictions_df.empty:
             st.write("Sample data:")
             st.write(predictions_df.head(1))
+        st.write(f"Showing {len(filtered_df)} of {len(predictions_df)} games")
     
-    # Display games
-    st.subheader(f"📊 {len(predictions_df)} Games")
+    # Display summary
+    st.info(f"📊 Showing {len(filtered_df)} games")
     
-    for idx, row in predictions_df.iterrows():
-        create_simple_game_card(row)
+    # Display games as cards
+    if not filtered_df.empty:
+        display_games_as_cards(filtered_df)
+    else:
+        st.warning("No games match the current filters")
 
 def main():
     # Apply styling
@@ -258,8 +481,8 @@ def main():
         st.error(f"⚠️ {error}")
         return
     
-    # Show predictions
-    show_simple_predictions(predictions_df)
+    # Show enhanced predictions with fancy features
+    show_enhanced_predictions(predictions_df)
 
 if __name__ == "__main__":
     main()
