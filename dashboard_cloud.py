@@ -248,11 +248,15 @@ def create_simple_game_card(row):
     vegas_raw = safe_str(row.get('Vegas Line', 'N/A'))
     edge_raw = safe_str(row.get('Edge', '0'))
     
-    # Parse teams
+    # Parse teams - Based on user clarification: Kansas State is HOME in "Kansas State vs Iowa State"
     if ' vs ' in matchup:
         teams = matchup.split(' vs ')
-        away_team = teams[0].strip() if len(teams) > 0 else 'Away'
-        home_team = teams[1].strip() if len(teams) > 1 else 'Home'
+        first_team = teams[0].strip() if len(teams) > 0 else 'Team1'
+        second_team = teams[1].strip() if len(teams) > 1 else 'Team2'
+        # CORRECTED: Based on user saying Kansas State is home team
+        # Format appears to be "Home vs Away" 
+        home_team = first_team   # First team in matchup is actually HOME
+        away_team = second_team  # Second team in matchup is actually AWAY
     else:
         away_team, home_team = 'Away', 'Home'
     
@@ -307,13 +311,40 @@ def create_simple_game_card(row):
         # Header with edge indicator
         col_title, col_edge = st.columns([3, 1])
         with col_title:
-            # Highlight the recommended team to bet on
+            # Highlight the recommended team to bet on with clearer spread explanation
+            vegas_line_float = safe_float(vegas_raw)
+            my_pred_float = safe_float(my_pred_raw)
+            
             if bet_recommendation == "home":
+                # Betting on home team (second team in matchup) 
+                # Positive Vegas line = home team favored by that amount
+                if vegas_line_float > 0:
+                    # Home team favored by Vegas line - bet them laying fewer points
+                    my_diff = my_pred_float - vegas_line_float
+                    spread_text = f"(-{vegas_line_float}, model likes them {abs(my_diff):.1f} more)"
+                elif vegas_line_float < 0:
+                    # Home team underdog by Vegas - bet them getting points  
+                    spread_text = f"(+{abs(vegas_line_float)}, getting points)"
+                else:
+                    spread_text = f"(pick 'em)"
                 st.subheader(f"{away_team} vs **:green[{home_team}]** 🎯")
-                st.caption(f"✅ **BET {home_team.upper()}** | {edge_raw}")
+                st.caption(f"✅ **BET {home_team.upper()}** {spread_text}")
+                
             elif bet_recommendation == "away":
+                # Betting on away team (first team in matchup)
+                # Positive Vegas line = home favored, so away getting points
+                if vegas_line_float > 0:
+                    # Away team getting points from Vegas
+                    my_diff = vegas_line_float - my_pred_float  
+                    spread_text = f"(+{vegas_line_float}, getting {my_diff:.1f} extra points)"
+                elif vegas_line_float < 0:
+                    # Away team favored by Vegas
+                    spread_text = f"(-{abs(vegas_line_float)}, model likes them more)"
+                else:
+                    spread_text = f"(pick 'em)"
                 st.subheader(f"**:green[{away_team}]** 🎯 vs {home_team}")
-                st.caption(f"✅ **BET {away_team.upper()}** | {edge_raw}")
+                st.caption(f"✅ **BET {away_team.upper()}** {spread_text}")
+                
             else:
                 st.subheader(f"{away_team} vs {home_team}")
                 st.caption(edge_raw)
