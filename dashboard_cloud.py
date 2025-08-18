@@ -283,19 +283,16 @@ def create_simple_game_card(row):
         edge_float = safe_float(edge_raw)
         edge_display = f"{edge_float:+.1f} points" if edge_float != 0 else "0.0 points"
     
-    # Get edge category
+    # Get edge category based on basketball experience
     abs_edge = abs(edge_float)
-    if abs_edge >= 5.0:
-        edge_category = "🔴 Extreme"
+    if abs_edge > 15.0:
+        edge_category = "🔴 Large Edge"
         edge_color = "red"
-    elif abs_edge >= 3.0:
-        edge_category = "🟡 High"
-        edge_color = "orange"
-    elif abs_edge >= 1.5:
-        edge_category = "🔵 Mid"
-        edge_color = "blue"
+    elif abs_edge >= 5.0:
+        edge_category = "🟢 Sweet Spot"  # Best performance zone
+        edge_color = "green"
     else:
-        edge_category = "⚪ Low"
+        edge_category = "⚪ Small Edge"
         edge_color = "gray"
     
     # Create card using Streamlit components
@@ -308,10 +305,8 @@ def create_simple_game_card(row):
         with col_edge:
             if edge_color == "red":
                 st.error(edge_category)
-            elif edge_color == "orange":
-                st.warning(edge_category)
-            elif edge_color == "blue":
-                st.info(edge_category)
+            elif edge_color == "green":
+                st.success(edge_category)
             else:
                 st.info(edge_category)
         
@@ -373,12 +368,12 @@ def show_enhanced_predictions(predictions_df):
             selected_team = "All Teams"
     
     with col2:
-        # Edge range filter based on calculated values
-        edge_options = ["All Edges", "High Edge (3+)", "Mid Edge (1.5-3)", "Low Edge (0-1.5)"]
+        # Edge range filter based on basketball experience
+        edge_options = ["All Edges", "Sweet Spot (5-15)", "Small Edge (<5)", "Large Edge (>15)"]
         selected_edge = st.selectbox("Filter by Edge", edge_options)
     
     with col3:
-        sort_options = ["Default", "Highest Edge", "Lowest Edge", "Alphabetical"]
+        sort_options = ["Default", "Sweet Spot First", "Highest Edge", "Lowest Edge", "Alphabetical"]
         sort_by = st.selectbox("Sort by", sort_options)
     
     # Filter data
@@ -402,11 +397,11 @@ def show_enhanced_predictions(predictions_df):
                 else:
                     edge_val = abs(float(edge_raw))
                 
-                if selected_edge == "High Edge (3+)" and edge_val >= 3.0:
+                if selected_edge == "Sweet Spot (5-15)" and 5.0 <= edge_val <= 15.0:
                     return True
-                elif selected_edge == "Mid Edge (1.5-3)" and 1.5 <= edge_val < 3.0:
+                elif selected_edge == "Small Edge (<5)" and edge_val < 5.0:
                     return True
-                elif selected_edge == "Low Edge (0-1.5)" and edge_val < 1.5:
+                elif selected_edge == "Large Edge (>15)" and edge_val > 15.0:
                     return True
                 return False
             except:
@@ -414,8 +409,107 @@ def show_enhanced_predictions(predictions_df):
         
         filtered_df = filtered_df[filtered_df.apply(filter_by_edge, axis=1)]
     
-    # Display summary
-    st.info(f"📊 Showing {len(filtered_df)} games")
+    # Apply sorting
+    if sort_by != "Default" and not filtered_df.empty:
+        try:
+            if sort_by == "Sweet Spot First":
+                # Prioritize Sweet Spot (5-15) games first
+                def get_sort_priority(row):
+                    edge_raw = str(row.get('Edge', ''))
+                    try:
+                        if "(" in edge_raw and ")" in edge_raw:
+                            start = edge_raw.find("(") + 1
+                            end = edge_raw.find(")")
+                            edge_num_str = edge_raw[start:end].replace("+", "").replace(" ", "")
+                            edge_val = abs(float(edge_num_str))
+                        else:
+                            edge_val = abs(float(edge_raw))
+                        
+                        if 5.0 <= edge_val <= 15.0:
+                            return 1  # Sweet spot - highest priority
+                        elif edge_val < 5.0:
+                            return 2  # Small edge - medium priority
+                        else:
+                            return 3  # Large edge - lowest priority
+                    except:
+                        return 4  # Unknown - lowest priority
+                
+                filtered_df['Sort_Priority'] = filtered_df.apply(get_sort_priority, axis=1)
+                
+                # Also get edge value for secondary sort
+                def extract_edge_value(edge_str):
+                    try:
+                        if "(" in str(edge_str) and ")" in str(edge_str):
+                            start = str(edge_str).find("(") + 1
+                            end = str(edge_str).find(")")
+                            edge_num_str = str(edge_str)[start:end].replace("+", "").replace(" ", "")
+                            return float(edge_num_str)
+                        return 0
+                    except:
+                        return 0
+                
+                filtered_df['Edge_Value'] = filtered_df['Edge'].apply(extract_edge_value)
+                filtered_df = filtered_df.sort_values(['Sort_Priority', 'Edge_Value'], ascending=[True, False])
+                
+            elif sort_by == "Highest Edge":
+                def extract_edge_value(edge_str):
+                    try:
+                        if "(" in str(edge_str) and ")" in str(edge_str):
+                            start = str(edge_str).find("(") + 1
+                            end = str(edge_str).find(")")
+                            edge_num_str = str(edge_str)[start:end].replace("+", "").replace(" ", "")
+                            return float(edge_num_str)
+                        return 0
+                    except:
+                        return 0
+                
+                filtered_df['Edge_Value'] = filtered_df['Edge'].apply(extract_edge_value)
+                filtered_df = filtered_df.sort_values('Edge_Value', ascending=False)
+                
+            elif sort_by == "Lowest Edge":
+                def extract_edge_value(edge_str):
+                    try:
+                        if "(" in str(edge_str) and ")" in str(edge_str):
+                            start = str(edge_str).find("(") + 1
+                            end = str(edge_str).find(")")
+                            edge_num_str = str(edge_str)[start:end].replace("+", "").replace(" ", "")
+                            return float(edge_num_str)
+                        return 999  # Put non-edges at end
+                    except:
+                        return 999
+                
+                filtered_df['Edge_Value'] = filtered_df['Edge'].apply(extract_edge_value)
+                filtered_df = filtered_df.sort_values('Edge_Value', ascending=True)
+                
+            elif sort_by == "Alphabetical":
+                if 'Matchup' in filtered_df.columns:
+                    filtered_df = filtered_df.sort_values('Matchup')
+                    
+        except Exception as e:
+            st.warning(f"Sorting failed: {str(e)}")
+    
+    # Display summary with edge legend
+    sort_info = f" | Sorted by: {sort_by}" if sort_by != "Default" else ""
+    st.info(f"📊 Showing {len(filtered_df)} games{sort_info}")
+    
+    # Edge category explanation
+    with st.expander("💡 Edge Category Guide (Based on Basketball Experience)", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.success("🟢 **Sweet Spot (5-15 points)**")
+            st.write("• Best performance zone")
+            st.write("• 52.6%+ win rate historically")
+            st.write("• Focus your attention here")
+        with col2:
+            st.info("⚪ **Small Edge (<5 points)**")
+            st.write("• Often just noise/variance")
+            st.write("• Difficult to profit from")
+            st.write("• Consider passing")
+        with col3:
+            st.error("🔴 **Large Edge (>15 points)**")
+            st.write("• Model struggles with mismatches")
+            st.write("• Only ~40% accuracy")
+            st.write("• Avoid these bets")
     
     # Display games as cards
     if not filtered_df.empty:
@@ -440,7 +534,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1><span class="football-accent"></span>NCAA Football Predictions Dashboard</h1>
-        <p>Powered by 4-Feature Linear Regression Model | 1.5 MAE Performance</p>
+        <p>Powered by 4-Feature Linear Regression Model | Basketball-Tested Edge Categories</p>
     </div>
     """, unsafe_allow_html=True)
     
