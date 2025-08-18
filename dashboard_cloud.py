@@ -269,6 +269,7 @@ def create_simple_game_card(row):
     vegas_display = vegas_raw if vegas_raw in ['N/A', 'n/a', ''] else vegas_raw
     
     # Handle Edge - extract number from text like "Bet Home (+4.4)"
+    bet_recommendation = None
     if "(" in edge_raw and ")" in edge_raw:
         try:
             start = edge_raw.find("(") + 1
@@ -276,6 +277,12 @@ def create_simple_game_card(row):
             edge_num_str = edge_raw[start:end].replace("+", "").replace(" ", "")
             edge_float = safe_float(edge_num_str)
             edge_display = f"{edge_float:+.1f} points"
+            
+            # Extract bet recommendation
+            if "Bet Home" in edge_raw:
+                bet_recommendation = "home"
+            elif "Bet Away" in edge_raw:
+                bet_recommendation = "away"
         except:
             edge_display = edge_raw
             edge_float = 0
@@ -300,8 +307,16 @@ def create_simple_game_card(row):
         # Header with edge indicator
         col_title, col_edge = st.columns([3, 1])
         with col_title:
-            st.subheader(f"{away_team} vs {home_team}")
-            st.caption(edge_raw)
+            # Highlight the recommended team to bet on
+            if bet_recommendation == "home":
+                st.subheader(f"{away_team} vs **:green[{home_team}]** 🎯")
+                st.caption(f"✅ **BET {home_team.upper()}** | {edge_raw}")
+            elif bet_recommendation == "away":
+                st.subheader(f"**:green[{away_team}]** 🎯 vs {home_team}")
+                st.caption(f"✅ **BET {away_team.upper()}** | {edge_raw}")
+            else:
+                st.subheader(f"{away_team} vs {home_team}")
+                st.caption(edge_raw)
         with col_edge:
             if edge_color == "red":
                 st.error(edge_category)
@@ -310,12 +325,16 @@ def create_simple_game_card(row):
             else:
                 st.info(edge_category)
         
-        # Predictions section
+        # Predictions section with bet highlighting
         col1, col2 = st.columns(2)
         with col1:
             st.metric("My Prediction", pred_text)
         with col2:
-            st.metric("Vegas Line", vegas_display)
+            if bet_recommendation:
+                recommended_team = home_team if bet_recommendation == "home" else away_team
+                st.metric("Vegas Line", vegas_display, help=f"Bet {recommended_team} - Model disagrees with market")
+            else:
+                st.metric("Vegas Line", vegas_display)
         
         # Edge info
         st.metric("Edge", edge_display)
