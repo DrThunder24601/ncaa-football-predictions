@@ -9,6 +9,70 @@ import joblib
 import numpy as np
 import os
 from google.oauth2.service_account import Credentials
+import sys
+from pathlib import Path
+
+# Add ability to import ResultsTracker (cloud-safe approach)
+try:
+    # Try to import ResultsTracker for model analysis
+    # Note: This may not work in cloud environment without proper file structure
+    class CloudSafeResultsAnalyzer:
+        """Cloud-safe version of results analysis that works with Google Sheets only"""
+        
+        def __init__(self, sheet_id, creds_dict):
+            self.sheet_id = sheet_id
+            self.creds_dict = creds_dict
+            self.results_tab = "Results Tracking"
+            self.performance_tab = "Performance Metrics"
+            
+        def get_results_data(self):
+            """Get results data from Google Sheets"""
+            try:
+                scopes = [
+                    'https://www.googleapis.com/auth/spreadsheets',
+                    'https://www.googleapis.com/auth/drive'
+                ]
+                creds = Credentials.from_service_account_info(self.creds_dict, scopes=scopes)
+                gc = gspread.authorize(creds)
+                spreadsheet = gc.open_by_key(self.sheet_id)
+                
+                # Try to get results
+                try:
+                    results_sheet = spreadsheet.worksheet(self.results_tab)
+                    results_data = results_sheet.get_all_records()
+                    return pd.DataFrame(results_data) if results_data else pd.DataFrame()
+                except gspread.WorksheetNotFound:
+                    return pd.DataFrame()
+                    
+            except Exception as e:
+                st.error(f"Error accessing results data: {e}")
+                return pd.DataFrame()
+                
+        def get_performance_data(self):
+            """Get performance metrics from Google Sheets"""
+            try:
+                scopes = [
+                    'https://www.googleapis.com/auth/spreadsheets',
+                    'https://www.googleapis.com/auth/drive'
+                ]
+                creds = Credentials.from_service_account_info(self.creds_dict, scopes=scopes)
+                gc = gspread.authorize(creds)
+                spreadsheet = gc.open_by_key(self.sheet_id)
+                
+                # Try to get performance metrics
+                try:
+                    perf_sheet = spreadsheet.worksheet(self.performance_tab)
+                    perf_data = perf_sheet.get_all_records()
+                    return pd.DataFrame(perf_data) if perf_data else pd.DataFrame()
+                except gspread.WorksheetNotFound:
+                    return pd.DataFrame()
+                    
+            except Exception as e:
+                st.error(f"Error accessing performance data: {e}")
+                return pd.DataFrame()
+                
+except ImportError:
+    CloudSafeResultsAnalyzer = None
 
 # Page configuration
 st.set_page_config(
@@ -393,6 +457,276 @@ def display_games_as_cards(df):
             if i + 1 < len(df):
                 create_simple_game_card(df.iloc[i + 1])
 
+def analyze_edge_category_performance(results_df, predictions_df):
+    """Analyze performance by edge categories to validate Sweet Spot hypothesis"""
+    if results_df.empty or predictions_df.empty:
+        return {}
+    
+    try:
+        # Merge results with predictions to get edge information
+        merged_df = pd.merge(
+            results_df, 
+            predictions_df, 
+            left_on=['Home Team', 'Away Team'], 
+            right_on=['Home Team', 'Away Team'], 
+            how='inner'
+        )
+        
+        if merged_df.empty:
+            return {}
+        
+        # Extract edge values and categorize
+        edge_analysis = []
+        for _, row in merged_df.iterrows():
+            edge_str = str(row.get('Edge', ''))
+            try:
+                if "(" in edge_str and ")" in edge_str:
+                    start = edge_str.find("(") + 1
+                    end = edge_str.find(")")
+                    edge_num_str = edge_str[start:end].replace("+", "").replace(" ", "")
+                    edge_val = abs(float(edge_num_str))
+                    
+                    # Categorize
+                    if edge_val < 5.0:
+                        category = "Small Edge (<5)"
+                    elif edge_val <= 15.0:
+                        category = "Sweet Spot (5-15)"
+                    else:
+                        category = "Large Edge (>15)"
+                    
+                    edge_analysis.append({
+                        'edge_value': edge_val,
+                        'edge_category': category,
+                        'prediction_error': float(row.get('Prediction Error', 0)),
+                        'winner_correct': row.get('Winner Correct', False)
+                    })
+            except:
+                continue
+        
+        if not edge_analysis:
+            return {}
+        
+        edge_df = pd.DataFrame(edge_analysis)
+        
+        # Calculate performance by category
+        performance_by_category = {}
+        for category in edge_df['edge_category'].unique():
+            cat_data = edge_df[edge_df['edge_category'] == category]
+            
+            performance_by_category[category] = {
+                'count': len(cat_data),
+                'avg_error': cat_data['prediction_error'].abs().mean(),
+                'accuracy': cat_data['winner_correct'].mean() * 100,
+                'rmse': np.sqrt(cat_data['prediction_error'].pow(2).mean())
+            }
+        
+        return performance_by_category
+        
+    except Exception as e:
+        st.error(f"Error analyzing edge categories: {e}")
+        return {}
+
+def show_model_analysis():
+    """Show Model Analysis tab with performance metrics and edge validation"""
+    st.header("📊 Model Analysis & Performance")
+    
+    # Load configuration
+    config = load_config()
+    if not config:
+        st.error("Configuration not loaded")
+        return
+    
+    # Initialize results analyzer
+    if CloudSafeResultsAnalyzer:
+        try:
+            creds_dict = dict(st.secrets["google_service_account"])
+            analyzer = CloudSafeResultsAnalyzer(config['sheet_id'], creds_dict)
+            
+            # Get data
+            with st.spinner("Loading model performance data..."):
+                results_df = analyzer.get_results_data()
+                performance_df = analyzer.get_performance_data()
+                predictions_df, _ = load_google_sheets_data()
+            
+            if results_df.empty:
+                st.info("📈 **No results data available yet**")
+                st.write("Results will appear here once games are completed and tracked.")
+                
+                # Show what will be available
+                st.subheader("📋 Available Once Season Starts:")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Overall Performance:**")
+                    st.write("• Mean Absolute Error (MAE)")
+                    st.write("• Root Mean Square Error (RMSE)")
+                    st.write("• Winner Prediction Accuracy")
+                    st.write("• Betting Record (ATS)")
+                
+                with col2:
+                    st.write("**Edge Category Validation:**")
+                    st.write("• Sweet Spot (5-15) Performance")
+                    st.write("• Small Edge (<5) Performance") 
+                    st.write("• Large Edge (>15) Performance")
+                    st.write("• Hypothesis Testing")
+                
+                return
+            
+            # Convert numeric columns
+            numeric_cols = ['Predicted Spread', 'Actual Spread', 'Prediction Error']
+            for col in numeric_cols:
+                if col in results_df.columns:
+                    results_df[col] = pd.to_numeric(results_df[col], errors='coerce')
+            
+            # Overall Performance Metrics
+            st.subheader("🎯 Overall Model Performance")
+            
+            if len(results_df) > 0:
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    mae = results_df['Prediction Error'].abs().mean()
+                    st.metric("Mean Absolute Error", f"{mae:.2f} pts")
+                
+                with col2:
+                    rmse = np.sqrt(results_df['Prediction Error'].pow(2).mean())
+                    st.metric("Root Mean Square Error", f"{rmse:.2f} pts")
+                
+                with col3:
+                    accuracy = results_df['Winner Correct'].value_counts().get(True, 0) / len(results_df) * 100
+                    st.metric("Winner Accuracy", f"{accuracy:.1f}%")
+                
+                with col4:
+                    total_games = len(results_df)
+                    st.metric("Games Tracked", total_games)
+            
+            # Error Distribution
+            st.subheader("📈 Prediction Error Distribution")
+            
+            if len(results_df) > 0:
+                fig = px.histogram(
+                    results_df, 
+                    x='Prediction Error',
+                    nbins=20,
+                    title="Distribution of Prediction Errors",
+                    labels={'Prediction Error': 'Prediction Error (points)', 'count': 'Frequency'}
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Edge Category Performance Analysis
+            st.subheader("🎯 Edge Category Validation")
+            
+            edge_performance = analyze_edge_category_performance(results_df, predictions_df)
+            
+            if edge_performance:
+                st.write("**Testing the Sweet Spot Hypothesis:** Does the 5-15 point edge range really perform best?")
+                
+                # Create comparison table
+                perf_data = []
+                for category, metrics in edge_performance.items():
+                    perf_data.append({
+                        'Edge Category': category,
+                        'Games': metrics['count'],
+                        'Avg Error': f"{metrics['avg_error']:.2f}",
+                        'Accuracy': f"{metrics['accuracy']:.1f}%",
+                        'RMSE': f"{metrics['rmse']:.2f}"
+                    })
+                
+                perf_comparison_df = pd.DataFrame(perf_data)
+                
+                # Style the table to highlight Sweet Spot
+                def highlight_sweet_spot(row):
+                    if 'Sweet Spot' in row['Edge Category']:
+                        return ['background-color: #90EE90'] * len(row)
+                    return [''] * len(row)
+                
+                st.dataframe(
+                    perf_comparison_df.style.apply(highlight_sweet_spot, axis=1),
+                    use_container_width=True
+                )
+                
+                # Visual comparison
+                fig = px.bar(
+                    perf_comparison_df, 
+                    x='Edge Category', 
+                    y='Accuracy',
+                    title="Winner Prediction Accuracy by Edge Category",
+                    color='Edge Category',
+                    color_discrete_map={
+                        'Small Edge (<5)': '#E8E8E8',
+                        'Sweet Spot (5-15)': '#90EE90', 
+                        'Large Edge (>15)': '#FFB6C1'
+                    }
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Analysis interpretation
+                if 'Sweet Spot (5-15)' in edge_performance:
+                    sweet_spot_acc = edge_performance['Sweet Spot (5-15)']['accuracy']
+                    st.write(f"**Sweet Spot Performance**: {sweet_spot_acc:.1f}% accuracy")
+                    
+                    if sweet_spot_acc > 52.6:
+                        st.success(f"✅ Sweet Spot is performing above the 52.6% basketball benchmark!")
+                    else:
+                        st.warning(f"⚠️ Sweet Spot is at {sweet_spot_acc:.1f}% - may need more data or adjustment")
+            else:
+                st.info("Edge category analysis will be available once more games are tracked with edge data.")
+            
+            # Weekly Performance Trend
+            if 'Week' in results_df.columns and len(results_df) > 1:
+                st.subheader("📅 Weekly Performance Trend")
+                
+                weekly_stats = results_df.groupby('Week').agg({
+                    'Prediction Error': ['mean', lambda x: x.abs().mean(), 'count'],
+                    'Winner Correct': 'mean'
+                }).round(2)
+                
+                weekly_stats.columns = ['Mean Error', 'MAE', 'Games', 'Accuracy']
+                weekly_stats['Accuracy'] *= 100
+                weekly_stats = weekly_stats.reset_index()
+                
+                fig = px.line(
+                    weekly_stats, 
+                    x='Week', 
+                    y=['MAE', 'Accuracy'],
+                    title="Performance Trend by Week"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Performance Summary
+            st.subheader("📋 Performance Summary")
+            
+            if len(results_df) >= 10:  # Need reasonable sample size
+                summary_text = f"""
+                **Model Assessment Based on {len(results_df)} Games:**
+                
+                • **Accuracy**: {accuracy:.1f}% winner prediction rate
+                • **Precision**: {mae:.2f} point average error (MAE)
+                • **Consistency**: {rmse:.2f} point RMSE
+                
+                """
+                
+                if edge_performance and 'Sweet Spot (5-15)' in edge_performance:
+                    sweet_acc = edge_performance['Sweet Spot (5-15)']['accuracy']
+                    if sweet_acc > 55:
+                        summary_text += "✅ **Sweet Spot Validated**: 5-15 point edges are performing well\n"
+                    elif sweet_acc > 50:
+                        summary_text += "⚠️ **Sweet Spot Mixed**: Some validation but needs more data\n"
+                    else:
+                        summary_text += "❌ **Sweet Spot Questioned**: May need strategy adjustment\n"
+                
+                st.markdown(summary_text)
+            else:
+                st.info("More games needed for comprehensive performance assessment (currently have {len(results_df)} games)")
+            
+        except Exception as e:
+            st.error(f"Error in model analysis: {e}")
+            st.write("Debug: Check Google Sheets tabs and permissions")
+    else:
+        st.error("Results analysis not available - CloudSafeResultsAnalyzer not loaded")
+
 def show_enhanced_predictions(predictions_df):
     """Show predictions with enhanced features"""
     st.header("🏈 NCAA Football Predictions Dashboard")
@@ -588,16 +922,24 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Load data
-    with st.spinner("Loading predictions..."):
-        predictions_df, error = load_google_sheets_data()
+    # Create tabs
+    tab1, tab2 = st.tabs(["🏈 Live Predictions", "📊 Model Analysis"])
     
-    if error:
-        st.error(f"⚠️ {error}")
-        return
+    with tab1:
+        # Load data
+        with st.spinner("Loading predictions..."):
+            predictions_df, error = load_google_sheets_data()
+        
+        if error:
+            st.error(f"⚠️ {error}")
+            return
+        
+        # Show enhanced predictions with fancy features
+        show_enhanced_predictions(predictions_df)
     
-    # Show enhanced predictions with fancy features
-    show_enhanced_predictions(predictions_df)
+    with tab2:
+        # Show model analysis and performance
+        show_model_analysis()
 
 if __name__ == "__main__":
     main()
