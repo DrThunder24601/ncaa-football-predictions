@@ -3,11 +3,12 @@ import gspread
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import joblib
 import numpy as np
 import os
+import time
 from google.oauth2.service_account import Credentials
 import sys
 from pathlib import Path
@@ -81,6 +82,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# Keep-alive functionality to prevent sleep
+def keep_alive():
+    """Keep the app alive by updating session state"""
+    if "last_ping" not in st.session_state:
+        st.session_state.last_ping = datetime.now()
+    
+    current_time = datetime.now()
+    if (current_time - st.session_state.last_ping).seconds > 240:  # 4 minutes
+        st.session_state.last_ping = current_time
+        # Create a hidden element that updates to keep session alive
+        st.markdown(f"<!-- Keep alive: {current_time} -->", unsafe_allow_html=True)
+
 # Custom CSS for professional styling
 def inject_custom_css():
     st.markdown("""
@@ -133,6 +146,23 @@ def inject_custom_css():
         font-size: 1.1rem;
         margin: 0.5rem 0 0 0;
         font-weight: 500;
+    }
+    
+    /* Error container styling */
+    .error-container {
+        background-color: #ffebee;
+        border-left: 4px solid #f44336;
+        padding: 1rem;
+        border-radius: 0 8px 8px 0;
+        margin: 1rem 0;
+    }
+    
+    .retry-container {
+        background-color: #e8f5e8;
+        border-left: 4px solid #4caf50;
+        padding: 1rem;
+        border-radius: 0 8px 8px 0;
+        margin: 1rem 0;
     }
     
     /* Sidebar styling */
@@ -199,6 +229,7 @@ def inject_custom_css():
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    .stDeployButton {display:none;}
     </style>
     
     """, unsafe_allow_html=True)
@@ -219,38 +250,117 @@ def load_config():
         st.error(f"Configuration error: {e}")
         return None
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def load_google_sheets_data():
-    """Load data from Google Sheets using Streamlit secrets"""
-    try:
-        config = load_config()
-        if not config:
-            return pd.DataFrame(), "Configuration not loaded"
-        
-        # Create credentials from secrets with proper scopes
-        creds_dict = dict(st.secrets["google_service_account"])
-        scopes = [
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
-        ]
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        
-        # Authenticate with Google Sheets
-        gc = gspread.authorize(creds)
-        spreadsheet = gc.open_by_key(config['sheet_id'])
-        
-        # Load predictions
-        predictions_sheet = spreadsheet.worksheet(config['predictions_tab'])
-        predictions_data = predictions_sheet.get_all_records()
-        
-        if predictions_data:
-            predictions_df = pd.DataFrame(predictions_data)
-            return predictions_df, None
-        else:
-            return pd.DataFrame(), "No predictions data found"
+@st.cache_data(ttl=300, show_spinner=False)  # Cache for 5 minutes
+def load_google_sheets_data_with_retry(max_retries=3):
+    """Load data from Google Sheets with retry logic and better error handling"""
+    
+    for attempt in range(max_retries):
+        try:
+            config = load_config()
+            if not config:
+                return pd.DataFrame(), "Configuration not loaded", False
             
-    except Exception as e:
-        return pd.DataFrame(), f"Error loading Google Sheets: {str(e)}"
+            # Create credentials from secrets with proper scopes
+            creds_dict = dict(st.secrets["google_service_account"])
+            
+            # Ensure private key has proper line breaks
+            if 'private_key' in creds_dict:
+                creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+            
+            scopes = [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            
+            # Authenticate with Google Sheets
+            gc = gspread.authorize(creds)
+            spreadsheet = gc.open_by_key(config['sheet_id'])
+            
+            # Load predictions
+            predictions_sheet = spreadsheet.worksheet(config['predictions_tab'])
+            predictions_data = predictions_sheet.get_all_records()
+            
+            if predictions_data:
+                predictions_df = pd.DataFrame(predictions_data)
+                # Clean the data
+                predictions_df = predictions_df.replace('', np.nan)
+                if 'Matchup' in predictions_df.columns:
+                    predictions_df = predictions_df.dropna(subset=['Matchup'])
+                
+                return predictions_df, None, True
+            else:
+                return pd.DataFrame(), "No predictions data found", False
+                
+        except gspread.exceptions.APIError as e:
+            if e.response.status_code == 429:  # Rate limit
+                wait_time = (2 ** attempt) * 1  # Exponential backoff
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                    continue
+                return pd.DataFrame(), f"Rate limit exceeded after {max_retries} attempts", False
+            elif e.response.status_code == 403:  # Permission error
+                return pd.DataFrame(), "Google Sheets permission denied. Check sharing settings.", False
+            elif e.response.status_code == 400:  # Bad request
+                return pd.DataFrame(), f"Bad request to Google Sheets API: {str(e)}", False
+            else:
+                return pd.DataFrame(), f"Google Sheets API error ({e.response.status_code}): {str(e)}", False
+                
+        except Exception as e:
+            if "quota" in str(e).lower():
+                return pd.DataFrame(), f"Google Sheets quota exceeded: {str(e)}", False
+            elif attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 1
+                time.sleep(wait_time)
+                continue
+            else:
+                return pd.DataFrame(), f"Error after {max_retries} attempts: {str(e)}", False
+    
+    return pd.DataFrame(), f"Failed to load data after {max_retries} attempts", False
+
+def show_error_with_solutions(error_message):
+    """Show error message with common solutions"""
+    st.markdown(f"""
+    <div class="error-container">
+        <h4>⚠️ Dashboard Error</h4>
+        <p><strong>Error:</strong> {error_message}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Show common solutions based on error type
+    if "400" in error_message or "Bad request" in error_message:
+        st.markdown("""
+        <div class="retry-container">
+        <h4>🔧 Common Solutions for 400 Errors:</h4>
+        <ol>
+            <li><strong>Check Google Sheets permissions:</strong> Make sure the service account has access to your spreadsheet</li>
+            <li><strong>Verify sheet names:</strong> Ensure 'Predictions' tab exists and is named correctly</li>
+            <li><strong>Check data format:</strong> Make sure there are no corrupted cells in the sheet</li>
+            <li><strong>Wait and retry:</strong> Sometimes it's a temporary API issue</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    elif "quota" in error_message.lower() or "rate limit" in error_message.lower():
+        st.markdown("""
+        <div class="retry-container">
+        <h4>📊 Quota/Rate Limit Solutions:</h4>
+        <ol>
+            <li><strong>Wait 1-2 minutes</strong> then refresh the page</li>
+            <li><strong>Reduce refresh frequency:</strong> Data is cached for 5 minutes</li>
+            <li><strong>Check API quotas:</strong> You may have hit daily Google Sheets API limits</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+
+def display_retry_button():
+    """Display retry button that clears cache"""
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("🔄 Retry Loading Data", key="retry_data"):
+            # Clear all caches
+            st.cache_data.clear()
+            st.rerun()
 
 def safe_float(value, default=0.0):
     """Safely convert value to float"""
@@ -380,14 +490,11 @@ def create_simple_game_card(row):
             my_pred_float = safe_float(my_pred_raw)
             
             if bet_recommendation == "home":
-                # Betting on home team (second team in matchup) 
-                # Positive Vegas line = home team favored by that amount
+                # Betting on home team (first team in matchup) 
                 if vegas_line_float > 0:
-                    # Home team favored by Vegas line - bet them laying fewer points
                     my_diff = my_pred_float - vegas_line_float
                     spread_text = f"(-{vegas_line_float}, model likes them {abs(my_diff):.1f} more)"
                 elif vegas_line_float < 0:
-                    # Home team underdog by Vegas - bet them getting points  
                     spread_text = f"(+{abs(vegas_line_float)}, getting points)"
                 else:
                     spread_text = f"(pick 'em)"
@@ -395,14 +502,11 @@ def create_simple_game_card(row):
                 st.caption(f"✅ **BET {home_team.upper()}** {spread_text}")
                 
             elif bet_recommendation == "away":
-                # Betting on away team (first team in matchup)
-                # Positive Vegas line = home favored, so away getting points
+                # Betting on away team (second team in matchup)
                 if vegas_line_float > 0:
-                    # Away team getting points from Vegas
                     my_diff = vegas_line_float - my_pred_float  
                     spread_text = f"(+{vegas_line_float}, getting {my_diff:.1f} extra points)"
                 elif vegas_line_float < 0:
-                    # Away team favored by Vegas
                     spread_text = f"(-{abs(vegas_line_float)}, model likes them more)"
                 else:
                     spread_text = f"(pick 'em)"
@@ -546,7 +650,7 @@ def show_model_analysis():
             with st.spinner("Loading model performance data..."):
                 results_df = analyzer.get_results_data()
                 performance_df = analyzer.get_performance_data()
-                predictions_df, _ = load_google_sheets_data()
+                predictions_df, _ = load_google_sheets_data_with_retry(max_retries=3)
             
             if results_df.empty:
                 st.info("📈 **No results data available yet**")
@@ -719,7 +823,7 @@ def show_model_analysis():
                 
                 st.markdown(summary_text)
             else:
-                st.info("More games needed for comprehensive performance assessment (currently have {len(results_df)} games)")
+                st.info(f"More games needed for comprehensive performance assessment (currently have {len(results_df)} games)")
             
         except Exception as e:
             st.error(f"Error in model analysis: {e}")
@@ -911,8 +1015,19 @@ def show_enhanced_predictions(predictions_df):
         st.write(f"Filtered: {len(filtered_df)} of {len(predictions_df)} games")
 
 def main():
-    # Apply styling
+    # Apply styling and keep alive
     inject_custom_css()
+    keep_alive()  # Keep app alive to prevent sleep
+    
+    # Sidebar status
+    with st.sidebar:
+        st.markdown("### 📊 System Status")
+        current_time = datetime.now().strftime('%H:%M:%S')
+        st.caption(f"Last updated: {current_time}")
+        
+        if st.button("🔄 Refresh Data"):
+            st.cache_data.clear()
+            st.rerun()
     
     # Header
     st.markdown("""
@@ -926,16 +1041,22 @@ def main():
     tab1, tab2 = st.tabs(["🏈 Live Predictions", "📊 Model Analysis"])
     
     with tab1:
-        # Load data
+        # Load data with retry logic
         with st.spinner("Loading predictions..."):
-            predictions_df, error = load_google_sheets_data()
+            predictions_df, error, success = load_google_sheets_data_with_retry(max_retries=3)
         
-        if error:
-            st.error(f"⚠️ {error}")
+        if not success and error:
+            show_error_with_solutions(error)
+            display_retry_button()
             return
-        
-        # Show enhanced predictions with fancy features
-        show_enhanced_predictions(predictions_df)
+        elif predictions_df.empty:
+            st.info("📭 No predictions available yet")
+            st.write("Predictions will appear here once games are loaded.")
+            display_retry_button()
+            return
+        else:
+            # Show enhanced predictions with fancy features
+            show_enhanced_predictions(predictions_df)
     
     with tab2:
         # Show model analysis and performance
