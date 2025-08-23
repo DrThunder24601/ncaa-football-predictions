@@ -423,6 +423,31 @@ def load_config():
         st.error(f"Configuration error: {e}")
         return None
 
+@st.cache_data(ttl=3600)  # Cache team mappings for 1 hour
+def load_team_name_mappings():
+    """Load team name mappings for odds API"""
+    try:
+        import pandas as pd
+        
+        # Load vegas name variations mapping
+        vegas_mapping = pd.read_csv("vegas_name_variations.csv")
+        
+        # Create mapping dictionaries
+        api_to_sheet = {}
+        sheet_to_api = {}
+        
+        for _, row in vegas_mapping.iterrows():
+            api_name = str(row.get('ESPN_School', '')).strip()
+            sheet_name = str(row.get('Model_School', '')).strip()
+            
+            if api_name and sheet_name:
+                api_to_sheet[api_name.lower()] = sheet_name
+                sheet_to_api[sheet_name.lower()] = api_name
+                
+        return api_to_sheet, sheet_to_api
+    except Exception as e:
+        return {}, {}
+
 @st.cache_data(ttl=600)  # Cache for 10 minutes - more reasonable for pre-kickoff updates
 def fetch_pre_kickoff_odds():
     """Fetch odds for games that haven't started yet (until kickoff only)"""
@@ -430,6 +455,9 @@ def fetch_pre_kickoff_odds():
         config = load_config()
         if not config or 'odds_api_key' not in config:
             return {}
+        
+        # Load team name mappings
+        api_to_sheet, sheet_to_api = load_team_name_mappings()
         
         # Get current time
         now = datetime.now()
@@ -449,8 +477,8 @@ def fetch_pre_kickoff_odds():
             # Convert to team->line mapping, but only for games that haven't started
             live_lines = {}
             for game in odds_data:
-                home_team = game.get('home_team', '')
-                away_team = game.get('away_team', '')
+                api_home_team = game.get('home_team', '')
+                api_away_team = game.get('away_team', '')
                 commence_time_str = game.get('commence_time', '')
                 
                 try:
@@ -461,6 +489,10 @@ def fetch_pre_kickoff_odds():
                     
                     # Only update lines for games that haven't started yet
                     if commence_local > now:
+                        # Map API team names to sheet names
+                        sheet_home_team = api_to_sheet.get(api_home_team.lower(), api_home_team)
+                        sheet_away_team = api_to_sheet.get(api_away_team.lower(), api_away_team)
+                        
                         # Get spread from first available bookmaker
                         if game.get('bookmakers') and len(game['bookmakers']) > 0:
                             bookmaker = game['bookmakers'][0]
@@ -469,13 +501,16 @@ def fetch_pre_kickoff_odds():
                                     if market.get('key') == 'spreads':
                                         outcomes = market.get('outcomes', [])
                                         for outcome in outcomes:
-                                            team = outcome.get('name', '')
+                                            api_team = outcome.get('name', '')
                                             point = outcome.get('point', 0)
-                                            if team == home_team:
-                                                # Store with various matchup formats
-                                                live_lines[f"{away_team} vs {home_team}"] = point
-                                                live_lines[f"{home_team} vs {away_team}"] = point
-                                                live_lines[f"{away_team} @ {home_team}"] = point
+                                            if api_team == api_home_team:
+                                                # Store with sheet team names in various formats
+                                                live_lines[f"{sheet_away_team} vs {sheet_home_team}"] = point
+                                                live_lines[f"{sheet_home_team} vs {sheet_away_team}"] = point
+                                                live_lines[f"{sheet_away_team} @ {sheet_home_team}"] = point
+                                                # Also store with original API names as fallback
+                                                live_lines[f"{api_away_team} vs {api_home_team}"] = point
+                                                live_lines[f"{api_home_team} vs {api_away_team}"] = point
                                         break
                 except Exception as e:
                     continue  # Skip this game if time parsing fails
