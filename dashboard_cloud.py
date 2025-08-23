@@ -448,7 +448,7 @@ def load_team_name_mappings():
     except Exception as e:
         return {}, {}
 
-@st.cache_data(ttl=600)  # Cache for 10 minutes - more reasonable for pre-kickoff updates
+@st.cache_data(ttl=60)  # Cache for 1 minute - immediate updates 
 def fetch_pre_kickoff_odds():
     """Fetch odds for games that haven't started yet (until kickoff only)"""
     try:
@@ -504,13 +504,15 @@ def fetch_pre_kickoff_odds():
                                             api_team = outcome.get('name', '')
                                             point = outcome.get('point', 0)
                                             if api_team == api_home_team:
-                                                # Store with sheet team names in various formats
-                                                live_lines[f"{sheet_away_team} vs {sheet_home_team}"] = point
+                                                # Store with sheet team names in ALL possible formats
+                                                # Your sheet uses "UNLV vs Idaho State" format (home vs away)
                                                 live_lines[f"{sheet_home_team} vs {sheet_away_team}"] = point
+                                                live_lines[f"{sheet_away_team} vs {sheet_home_team}"] = point
+                                                live_lines[f"{sheet_home_team} @ {sheet_away_team}"] = point
                                                 live_lines[f"{sheet_away_team} @ {sheet_home_team}"] = point
                                                 # Also store with original API names as fallback
-                                                live_lines[f"{api_away_team} vs {api_home_team}"] = point
                                                 live_lines[f"{api_home_team} vs {api_away_team}"] = point
+                                                live_lines[f"{api_away_team} vs {api_home_team}"] = point
                                         break
                 except Exception as e:
                     continue  # Skip this game if time parsing fails
@@ -579,6 +581,15 @@ def load_google_sheets_data_with_retry(max_retries=3):
                         
                         if updates_made > 0:
                             st.success(f"📈 Updated {updates_made} game lines with pre-kickoff odds")
+                        
+                        # Debug output for UNLV game
+                        for idx, row in predictions_df.iterrows():
+                            matchup = str(row.get('Matchup', ''))
+                            if 'UNLV' in matchup and 'Idaho' in matchup:
+                                current_line = row.get('Vegas Line', 'N/A')
+                                line_movement = row.get('Line Movement', 'None')
+                                st.info(f"🔍 Debug - {matchup}: Line={current_line}, Movement={line_movement}")
+                                break
                 except Exception as e:
                     # Don't fail the whole dashboard if odds update fails
                     pass
@@ -1088,6 +1099,14 @@ def main():
         
         if st.button("🔄 Refresh Data"):
             st.cache_data.clear()
+            # Clear specific functions
+            fetch_pre_kickoff_odds.clear()
+            load_google_sheets_data_with_retry.clear()
+            st.rerun()
+            
+        if st.button("⚡ Force Line Update"):
+            # Force immediate line update
+            fetch_pre_kickoff_odds.clear()
             st.rerun()
     
     # Header
