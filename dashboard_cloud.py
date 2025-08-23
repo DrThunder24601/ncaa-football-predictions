@@ -565,34 +565,49 @@ def load_google_sheets_data_with_retry(max_retries=3):
                 # Update with pre-kickoff odds (only for games that haven't started)
                 try:
                     pre_kickoff_odds = fetch_pre_kickoff_odds()
+                    st.info(f"🔍 Fetched {len(pre_kickoff_odds)} live odds updates")
+                    
+                    # Debug: Show what keys we have for UNLV
+                    unlv_keys = [key for key in pre_kickoff_odds.keys() if 'UNLV' in key or 'Idaho' in key]
+                    if unlv_keys:
+                        st.info(f"🔍 UNLV game keys found: {unlv_keys}")
+                        for key in unlv_keys:
+                            st.info(f"   {key} -> {pre_kickoff_odds[key]}")
+                    
                     if pre_kickoff_odds:
                         updates_made = 0
                         for idx, row in predictions_df.iterrows():
                             matchup = str(row.get('Matchup', ''))
+                            
+                            # Debug for UNLV game specifically
+                            if 'UNLV' in matchup and 'Idaho' in matchup:
+                                st.info(f"🔍 Checking matchup: '{matchup}'")
+                                st.info(f"   Found in odds: {matchup in pre_kickoff_odds}")
+                                if matchup in pre_kickoff_odds:
+                                    st.info(f"   Odds value: {pre_kickoff_odds[matchup]}")
+                            
                             if matchup in pre_kickoff_odds:
                                 old_line = row.get('Vegas Line', 'N/A')
                                 new_line = pre_kickoff_odds[matchup]
+                                st.info(f"🔍 Line update: {matchup} - Old: {old_line}, New: {new_line}")
+                                
                                 # Only update if line actually changed
                                 if str(old_line) != str(new_line):
                                     predictions_df.at[idx, 'Vegas Line'] = new_line
                                     predictions_df.at[idx, 'Line Movement'] = f"Was {old_line} → Now {new_line}"
                                     predictions_df.at[idx, 'Status'] = "Pre-Kickoff"
                                     updates_made += 1
+                                    st.success(f"✅ Updated {matchup}: {old_line} → {new_line}")
                         
                         if updates_made > 0:
                             st.success(f"📈 Updated {updates_made} game lines with pre-kickoff odds")
+                        else:
+                            st.warning("⚠️ No lines were updated (all lines unchanged)")
                         
-                        # Debug output for UNLV game
-                        for idx, row in predictions_df.iterrows():
-                            matchup = str(row.get('Matchup', ''))
-                            if 'UNLV' in matchup and 'Idaho' in matchup:
-                                current_line = row.get('Vegas Line', 'N/A')
-                                line_movement = row.get('Line Movement', 'None')
-                                st.info(f"🔍 Debug - {matchup}: Line={current_line}, Movement={line_movement}")
-                                break
                 except Exception as e:
-                    # Don't fail the whole dashboard if odds update fails
-                    pass
+                    st.error(f"❌ Error updating odds: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
                 
                 return predictions_df, None, True
             else:
