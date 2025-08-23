@@ -9,6 +9,7 @@ import joblib
 import numpy as np
 import os
 import time
+import requests
 from google.oauth2.service_account import Credentials
 import sys
 from pathlib import Path
@@ -422,7 +423,71 @@ def load_config():
         st.error(f"Configuration error: {e}")
         return None
 
-@st.cache_data(ttl=300, show_spinner=False)  # Cache for 5 minutes
+@st.cache_data(ttl=600)  # Cache for 10 minutes - more reasonable for pre-kickoff updates
+def fetch_pre_kickoff_odds():
+    """Fetch odds for games that haven't started yet (until kickoff only)"""
+    try:
+        config = load_config()
+        if not config or 'odds_api_key' not in config:
+            return {}
+        
+        # Get current time
+        now = datetime.now()
+        
+        url = "https://api.the-odds-api.com/v4/sports/americanfootball_ncaaf/odds/"
+        params = {
+            'apiKey': config['odds_api_key'],
+            'regions': 'us',
+            'markets': 'spreads',
+            'oddsFormat': 'american'
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            odds_data = response.json()
+            
+            # Convert to team->line mapping, but only for games that haven't started
+            live_lines = {}
+            for game in odds_data:
+                home_team = game.get('home_team', '')
+                away_team = game.get('away_team', '')
+                commence_time_str = game.get('commence_time', '')
+                
+                try:
+                    # Parse game start time
+                    commence_time = datetime.fromisoformat(commence_time_str.replace('Z', '+00:00'))
+                    # Convert to local time (assuming EST/EDT)
+                    commence_local = commence_time.replace(tzinfo=None) - timedelta(hours=5)  # Adjust for timezone
+                    
+                    # Only update lines for games that haven't started yet
+                    if commence_local > now:
+                        # Get spread from first available bookmaker
+                        if game.get('bookmakers') and len(game['bookmakers']) > 0:
+                            bookmaker = game['bookmakers'][0]
+                            if bookmaker.get('markets'):
+                                for market in bookmaker['markets']:
+                                    if market.get('key') == 'spreads':
+                                        outcomes = market.get('outcomes', [])
+                                        for outcome in outcomes:
+                                            team = outcome.get('name', '')
+                                            point = outcome.get('point', 0)
+                                            if team == home_team:
+                                                # Store with various matchup formats
+                                                live_lines[f"{away_team} vs {home_team}"] = point
+                                                live_lines[f"{home_team} vs {away_team}"] = point
+                                                live_lines[f"{away_team} @ {home_team}"] = point
+                                        break
+                except Exception as e:
+                    continue  # Skip this game if time parsing fails
+                        
+            return live_lines
+        else:
+            return {}
+    except Exception as e:
+        # Don't show error to user for odds fetching - just log it
+        st.write(f"<!-- Odds fetch error: {e} -->", unsafe_allow_html=True)
+        return {}
+
 def load_google_sheets_data_with_retry(max_retries=3):
     """Load data from Google Sheets with retry logic and better error handling"""
     
@@ -459,6 +524,29 @@ def load_google_sheets_data_with_retry(max_retries=3):
                 predictions_df = predictions_df.replace('', np.nan)
                 if 'Matchup' in predictions_df.columns:
                     predictions_df = predictions_df.dropna(subset=['Matchup'])
+                
+                # Update with pre-kickoff odds (only for games that haven't started)
+                try:
+                    pre_kickoff_odds = fetch_pre_kickoff_odds()
+                    if pre_kickoff_odds:
+                        updates_made = 0
+                        for idx, row in predictions_df.iterrows():
+                            matchup = str(row.get('Matchup', ''))
+                            if matchup in pre_kickoff_odds:
+                                old_line = row.get('Vegas Line', 'N/A')
+                                new_line = pre_kickoff_odds[matchup]
+                                # Only update if line actually changed
+                                if str(old_line) != str(new_line):
+                                    predictions_df.at[idx, 'Vegas Line'] = new_line
+                                    predictions_df.at[idx, 'Line Movement'] = f"Was {old_line} → Now {new_line}"
+                                    predictions_df.at[idx, 'Status'] = "Pre-Kickoff"
+                                    updates_made += 1
+                        
+                        if updates_made > 0:
+                            st.success(f"📈 Updated {updates_made} game lines with pre-kickoff odds")
+                except Exception as e:
+                    # Don't fail the whole dashboard if odds update fails
+                    pass
                 
                 return predictions_df, None, True
             else:
