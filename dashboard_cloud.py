@@ -482,12 +482,16 @@ def fetch_pre_kickoff_odds():
                 commence_time_str = game.get('commence_time', '')
                 
                 try:
-                    # Parse game start time
+                    # Parse game start time (UTC)
                     commence_time = datetime.fromisoformat(commence_time_str.replace('Z', '+00:00'))
-                    # Convert to local time (assuming EST/EDT)
-                    commence_local = commence_time.replace(tzinfo=None) - timedelta(hours=5)  # Adjust for timezone
+                    # Convert to Eastern time (UTC-4 for EDT in August)
+                    commence_local = commence_time.replace(tzinfo=None) - timedelta(hours=4)
                     
                     # Only update lines for games that haven't started yet
+                    game_name = f"{api_away_team} @ {api_home_team}"
+                    if 'unlv' in game_name.lower() and 'idaho' in game_name.lower():
+                        st.info(f"🔍 {game_name}: Starts {commence_local}, Current {now}, Update: {commence_local > now}")
+                    
                     if commence_local > now:
                         # Map API team names to sheet names
                         sheet_home_team = api_to_sheet.get(api_home_team.lower(), api_home_team)
