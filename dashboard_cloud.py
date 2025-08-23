@@ -484,8 +484,8 @@ def fetch_pre_kickoff_odds():
                 try:
                     # Parse game start time (UTC)
                     commence_time = datetime.fromisoformat(commence_time_str.replace('Z', '+00:00'))
-                    # Convert to Eastern time (UTC-4 for EDT in August)
-                    commence_local = commence_time.replace(tzinfo=None) - timedelta(hours=4)
+                    # Convert to Central time (UTC-5 for CDT in August)
+                    commence_local = commence_time.replace(tzinfo=None) - timedelta(hours=5)
                     
                     # Only update lines for games that haven't started yet
                     game_name = f"{api_away_team} @ {api_home_team}"
