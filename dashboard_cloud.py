@@ -459,8 +459,13 @@ def fetch_pre_kickoff_odds():
         # Load team name mappings
         api_to_sheet, sheet_to_api = load_team_name_mappings()
         
-        # Get current time
-        now = datetime.now()
+        # Get current time in Central Time (force correct timezone)
+        import time
+        from datetime import timezone
+        
+        # Force Central Time (UTC-5 for CDT)
+        now_utc = datetime.now(timezone.utc)
+        now = now_utc.replace(tzinfo=None) - timedelta(hours=5)  # Convert to Central Time
         
         url = "https://api.the-odds-api.com/v4/sports/americanfootball_ncaaf/odds/"
         params = {
