@@ -502,6 +502,11 @@ def fetch_pre_kickoff_odds():
                         sheet_home_team = api_to_sheet.get(api_home_team.lower(), api_home_team)
                         sheet_away_team = api_to_sheet.get(api_away_team.lower(), api_away_team)
                         
+                        # Debug mapping for UNLV game
+                        if 'unlv' in game_name.lower() and 'idaho' in game_name.lower():
+                            st.info(f"🔍 Mapping: {api_home_team} -> {sheet_home_team}")
+                            st.info(f"🔍 Mapping: {api_away_team} -> {sheet_away_team}")
+                        
                         # Get spread from first available bookmaker
                         if game.get('bookmakers') and len(game['bookmakers']) > 0:
                             bookmaker = game['bookmakers'][0]
