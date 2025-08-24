@@ -902,9 +902,18 @@ def show_enhanced_predictions(predictions_df, optimal_ranges):
         st.info(f"🔄 Learning Mode: Using default ranges until we have {10 if optimal_ranges['sample_size'] < 10 else 'more'} games to analyze")
     
     # Filters
-    col1, col2, col3 = st.columns([1, 1, 2])
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     
     with col1:
+        # Week filter
+        if not predictions_df.empty and 'Week' in predictions_df.columns:
+            available_weeks = sorted(predictions_df['Week'].dropna().unique(), reverse=True)
+            week_options = ["Latest Week"] + [f"Week {w}" for w in available_weeks]
+            selected_week_option = st.selectbox("Week", week_options)
+        else:
+            selected_week_option = "Latest Week"
+    
+    with col2:
         # Extract unique teams
         if 'Matchup' in predictions_df.columns:
             all_teams = []
@@ -917,18 +926,39 @@ def show_enhanced_predictions(predictions_df, optimal_ranges):
         else:
             selected_team = "All Teams"
     
-    with col2:
+    with col3:
         # Dynamic edge range filter
         ranges = optimal_ranges['optimal_ranges']
         edge_options = ["All Edges"] + list(ranges.keys())
         selected_edge = st.selectbox("Filter by Edge", edge_options)
     
-    with col3:
+    with col4:
         sort_options = ["Default", "Sweet Spot First", "Highest Edge", "Lowest Edge", "Alphabetical"]
         sort_by = st.selectbox("Sort by", sort_options)
     
     # Filter data
     filtered_df = predictions_df.copy()
+    
+    # Week filter
+    if not filtered_df.empty and 'Week' in filtered_df.columns:
+        if selected_week_option == "Latest Week":
+            # Show Week 1 (upcoming week) by default, not the highest week number
+            current_week = 1  # Force Week 1 as current betting week
+            filtered_df = filtered_df[filtered_df['Week'] == current_week]
+            week_info = f"Week {current_week}"
+        else:
+            # Parse selected week (e.g., "Week 1" -> 1)
+            try:
+                selected_week_num = int(selected_week_option.split()[-1])
+                filtered_df = filtered_df[filtered_df['Week'] == selected_week_num]
+                week_info = f"Week {selected_week_num}"
+            except:
+                week_info = "Current"
+    elif not filtered_df.empty:
+        # If no Week column, show all
+        week_info = "All"
+    else:
+        week_info = "No"
     
     # Team filter
     if selected_team != "All Teams":
@@ -1017,11 +1047,12 @@ def show_enhanced_predictions(predictions_df, optimal_ranges):
             st.warning(f"Sorting failed: {str(e)}")
     
     # Display summary
+    total_games = len(predictions_df) if not predictions_df.empty else 0
     if sort_by == "Default":
         sort_info = " | Vegas lines first, N/A lines last"
     else:
         sort_info = f" | Sorted by: {sort_by}"
-    st.info(f"📊 Showing {len(filtered_df)} games{sort_info}")
+    st.info(f"📊 Showing {len(filtered_df)} {week_info} games (out of {total_games} total games){sort_info}")
     
     # Dynamic edge category explanation
     with st.expander("💡 Current Edge Categories", expanded=False):
