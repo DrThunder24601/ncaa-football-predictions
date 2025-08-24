@@ -132,13 +132,28 @@ def analyze_optimal_edge_ranges(results_df, predictions_df):
     
     try:
         # Merge results with predictions to get edge information
-        merged_df = pd.merge(
-            results_df, 
-            predictions_df, 
-            left_on=['Home Team', 'Away Team'], 
-            right_on=['Home Team', 'Away Team'], 
-            how='inner'
-        )
+        # Handle different column formats
+        if 'Home Team' in results_df.columns and 'Home Team' in predictions_df.columns:
+            merged_df = pd.merge(
+                results_df, 
+                predictions_df, 
+                left_on=['Home Team', 'Away Team'], 
+                right_on=['Home Team', 'Away Team'], 
+                how='inner'
+            )
+        elif 'Matchup' in predictions_df.columns:
+            # Create a matchup column in results_df to match predictions format
+            if 'Home Team' in results_df.columns:
+                results_df = results_df.copy()
+                results_df['Matchup'] = results_df['Home Team'] + ' vs ' + results_df['Away Team']
+            merged_df = pd.merge(
+                results_df, 
+                predictions_df, 
+                on='Matchup', 
+                how='inner'
+            )
+        else:
+            merged_df = pd.DataFrame()  # No matching columns found
         
         if merged_df.empty or len(merged_df) < 10:  # Need at least 10 games
             return {
