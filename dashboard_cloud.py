@@ -1134,8 +1134,30 @@ def show_model_analysis():
                     st.metric("Root Mean Square Error", f"{rmse:.2f} pts")
                 
                 with col3:
-                    accuracy = results_df['Winner Correct'].value_counts().get(True, 0) / len(results_df) * 100
-                    st.metric("Winner Accuracy", f"{accuracy:.1f}%")
+                    # Convert Google Sheets string values to proper boolean/None
+                    def convert_winner_correct(val):
+                        if isinstance(val, str):
+                            val_upper = val.strip().upper()
+                            if val_upper == 'TRUE':
+                                return True
+                            elif val_upper == 'FALSE':
+                                return False
+                            else:
+                                return None  # Empty or invalid string
+                        return val
+                    
+                    results_df['Winner Correct'] = results_df['Winner Correct'].apply(convert_winner_correct)
+                    
+                    # Calculate betting accuracy - only count games where bets were made
+                    bet_games = results_df[results_df['Winner Correct'].notna()]
+                    if len(bet_games) > 0:
+                        wins = len(bet_games[bet_games['Winner Correct'] == True])
+                        losses = len(bet_games[bet_games['Winner Correct'] == False])
+                        accuracy = (wins / len(bet_games)) * 100
+                        betting_record = f"{wins}-{losses}"
+                        st.metric("Winner Accuracy", f"{accuracy:.1f}%", help=f"Betting Record: {betting_record}")
+                    else:
+                        st.metric("Winner Accuracy", "0.0%", help="No bets tracked yet")
                 
                 with col4:
                     total_games = len(results_df)
