@@ -493,19 +493,10 @@ def fetch_pre_kickoff_odds():
                     commence_local = commence_time.replace(tzinfo=None) - timedelta(hours=5)
                     
                     # Only update lines for games that haven't started yet
-                    game_name = f"{api_away_team} @ {api_home_team}"
-                    if 'unlv' in game_name.lower() and 'idaho' in game_name.lower():
-                        st.info(f"🔍 {game_name}: Starts {commence_local}, Current {now}, Update: {commence_local > now}")
-                    
                     if commence_local > now:
                         # Map API team names to sheet names
                         sheet_home_team = api_to_sheet.get(api_home_team.lower(), api_home_team)
                         sheet_away_team = api_to_sheet.get(api_away_team.lower(), api_away_team)
-                        
-                        # Debug mapping for UNLV game
-                        if 'unlv' in game_name.lower() and 'idaho' in game_name.lower():
-                            st.info(f"🔍 Mapping: {api_home_team} -> {sheet_home_team}")
-                            st.info(f"🔍 Mapping: {api_away_team} -> {sheet_away_team}")
                         
                         # Get spread from first available bookmaker
                         if game.get('bookmakers') and len(game['bookmakers']) > 0:
@@ -579,49 +570,26 @@ def load_google_sheets_data_with_retry(max_retries=3):
                 # Update with pre-kickoff odds (only for games that haven't started)
                 try:
                     pre_kickoff_odds = fetch_pre_kickoff_odds()
-                    st.info(f"🔍 Fetched {len(pre_kickoff_odds)} live odds updates")
-                    
-                    # Debug: Show what keys we have for UNLV
-                    unlv_keys = [key for key in pre_kickoff_odds.keys() if 'UNLV' in key or 'Idaho' in key]
-                    if unlv_keys:
-                        st.info(f"🔍 UNLV game keys found: {unlv_keys}")
-                        for key in unlv_keys:
-                            st.info(f"   {key} -> {pre_kickoff_odds[key]}")
-                    
                     if pre_kickoff_odds:
                         updates_made = 0
                         for idx, row in predictions_df.iterrows():
                             matchup = str(row.get('Matchup', ''))
-                            
-                            # Debug for UNLV game specifically
-                            if 'UNLV' in matchup and 'Idaho' in matchup:
-                                st.info(f"🔍 Checking matchup: '{matchup}'")
-                                st.info(f"   Found in odds: {matchup in pre_kickoff_odds}")
-                                if matchup in pre_kickoff_odds:
-                                    st.info(f"   Odds value: {pre_kickoff_odds[matchup]}")
-                            
                             if matchup in pre_kickoff_odds:
                                 old_line = row.get('Vegas Line', 'N/A')
                                 new_line = pre_kickoff_odds[matchup]
-                                st.info(f"🔍 Line update: {matchup} - Old: {old_line}, New: {new_line}")
-                                
                                 # Only update if line actually changed
                                 if str(old_line) != str(new_line):
                                     predictions_df.at[idx, 'Vegas Line'] = new_line
                                     predictions_df.at[idx, 'Line Movement'] = f"Was {old_line} → Now {new_line}"
                                     predictions_df.at[idx, 'Status'] = "Pre-Kickoff"
                                     updates_made += 1
-                                    st.success(f"✅ Updated {matchup}: {old_line} → {new_line}")
                         
                         if updates_made > 0:
                             st.success(f"📈 Updated {updates_made} game lines with pre-kickoff odds")
-                        else:
-                            st.warning("⚠️ No lines were updated (all lines unchanged)")
                         
                 except Exception as e:
-                    st.error(f"❌ Error updating odds: {str(e)}")
-                    import traceback
-                    st.code(traceback.format_exc())
+                    # Silently handle errors - don't break the dashboard
+                    pass
                 
                 return predictions_df, None, True
             else:
