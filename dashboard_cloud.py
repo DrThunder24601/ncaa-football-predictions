@@ -1003,7 +1003,7 @@ def show_model_analysis():
             
             with st.spinner("Loading performance data and analyzing optimal edge ranges..."):
                 results_df = analyzer.get_results_data()
-                predictions_df, _ = load_google_sheets_data_with_retry(max_retries=3)
+                predictions_df, _, _ = load_google_sheets_data_with_retry(max_retries=3)
                 
                 # Get dynamic edge analysis
                 optimal_ranges = analyze_optimal_edge_ranges(results_df, predictions_df)
