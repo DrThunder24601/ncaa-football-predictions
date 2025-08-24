@@ -85,15 +85,33 @@ st.set_page_config(
 
 # Keep-alive functionality to prevent sleep
 def keep_alive():
-    """Keep the app alive by updating session state"""
+    """Keep the app alive by updating session state every 2 minutes"""
     if "last_ping" not in st.session_state:
         st.session_state.last_ping = datetime.now()
+        st.session_state.ping_counter = 0
     
     current_time = datetime.now()
-    if (current_time - st.session_state.last_ping).seconds > 240:  # 4 minutes
+    if (current_time - st.session_state.last_ping).seconds > 120:  # 2 minutes (more aggressive)
         st.session_state.last_ping = current_time
-        # Create a hidden element that updates to keep session alive
-        st.markdown(f"<!-- Keep alive: {current_time} -->", unsafe_allow_html=True)
+        st.session_state.ping_counter += 1
+        
+        # Multiple keep-alive mechanisms
+        st.markdown(f"<!-- Keep alive ping #{st.session_state.ping_counter}: {current_time} -->", unsafe_allow_html=True)
+        
+        # Force a small rerun every 10 minutes to refresh data
+        if st.session_state.ping_counter % 5 == 0:  # Every 10 minutes
+            st.cache_data.clear()  # Clear caches to force refresh
+            
+        # Add auto-refresh meta tag
+        st.markdown("""
+        <meta http-equiv="refresh" content="300">
+        <script>
+            // JavaScript keep-alive heartbeat
+            setInterval(function() {
+                fetch(window.location.href, {method: 'HEAD'});
+            }, 120000); // Every 2 minutes
+        </script>
+        """, unsafe_allow_html=True)
 
 # Dynamic edge analysis functions
 @st.cache_data(ttl=600)  # Cache for 10 minutes
@@ -1093,6 +1111,12 @@ def main():
         st.markdown("### 📊 System Status")
         current_time = datetime.now().strftime('%H:%M:%S')
         st.caption(f"Last updated: {current_time}")
+        
+        # Keep-alive status
+        if "ping_counter" in st.session_state:
+            st.caption(f"🔄 Keep-alive: {st.session_state.ping_counter} pings")
+        else:
+            st.caption("🔄 Keep-alive: Starting...")
         
         if st.button("🔄 Refresh Data"):
             st.cache_data.clear()
