@@ -41,8 +41,38 @@ try:
                 # Try to get results
                 try:
                     results_sheet = spreadsheet.worksheet(self.results_tab)
-                    results_data = results_sheet.get_all_records()
-                    return pd.DataFrame(results_data) if results_data else pd.DataFrame()
+                    
+                    # Handle duplicate headers by specifying expected headers
+                    expected_headers = [
+                        'Date', 'Week', 'Home Team', 'Away Team', 'Matchup',
+                        'Predicted Spread', 'Actual Spread', 'Prediction Error',
+                        'Predicted Winner', 'Bet_Type', 'Actual Winner', 'Winner Correct',
+                        'Home Score', 'Away Score', 'Total Points', 'Game ID',
+                        'Confidence', 'Model Used', 'Updated At'
+                    ]
+                    
+                    try:
+                        # First try normal approach
+                        results_data = results_sheet.get_all_records()
+                        return pd.DataFrame(results_data) if results_data else pd.DataFrame()
+                    except Exception as header_error:
+                        if 'duplicate' in str(header_error).lower():
+                            # Handle duplicate headers by using expected headers
+                            try:
+                                results_data = results_sheet.get_all_records(expected_headers=expected_headers)
+                                return pd.DataFrame(results_data) if results_data else pd.DataFrame()
+                            except Exception:
+                                # If that fails, get all values and manually process
+                                all_values = results_sheet.get_all_values()
+                                if len(all_values) > 1:
+                                    # Use expected headers and skip first row
+                                    df = pd.DataFrame(all_values[1:], columns=expected_headers[:len(all_values[0])])
+                                    return df
+                                else:
+                                    return pd.DataFrame()
+                        else:
+                            raise header_error
+                            
                 except gspread.WorksheetNotFound:
                     return pd.DataFrame()
                     
