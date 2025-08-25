@@ -1232,7 +1232,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1>🏈 NCAA Football Predictions Dashboard</h1>
-        <p>Powered by 4-Feature Linear Regression Model | Dynamic Data-Driven Edge Categories</p>
+        <p>Powered by RF_Deep Random Forest Model (15 Features) | Dynamic Data-Driven Edge Categories</p>
     </div>
     """, unsafe_allow_html=True)
     
