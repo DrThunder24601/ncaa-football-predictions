@@ -146,7 +146,7 @@ def load_config():
         return {
             'sheet_id': st.secrets["sheets"]["sheet_id"],
             'schedule_tab': st.secrets["sheets"]["schedule_tab"],
-            'predictions_tab': "ESPN Schedule Pull",  # Use ESPN schedule instead of predictions
+            'predictions_tab': "Predictions",  # Use clean predictions tab
             'cfbd_api_key': st.secrets["apis"]["cfbd_api_key"],
             'odds_api_key': st.secrets["apis"]["odds_api_key"]
         }
