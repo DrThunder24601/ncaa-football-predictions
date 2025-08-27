@@ -146,7 +146,7 @@ def load_config():
         return {
             'sheet_id': st.secrets["sheets"]["sheet_id"],
             'schedule_tab': st.secrets["sheets"]["schedule_tab"],
-            'predictions_tab': st.secrets["sheets"]["predictions_tab"],
+            'predictions_tab': "ESPN Schedule Pull",  # Use ESPN schedule instead of predictions
             'cfbd_api_key': st.secrets["apis"]["cfbd_api_key"],
             'odds_api_key': st.secrets["apis"]["odds_api_key"]
         }
@@ -184,12 +184,22 @@ def load_google_sheets_data_with_retry(max_retries=3):
             
             # Clean and process the data
             if not df.empty:
-                # Convert Week column to numeric
-                if 'Week' in df.columns:
+                # Handle ESPN Schedule Pull format (Home Team, Away Team)
+                if 'Home Team' in df.columns and 'Away Team' in df.columns and 'Matchup' not in df.columns:
+                    # Convert ESPN schedule format to predictions format
+                    df['Matchup'] = df['Away Team'] + ' vs ' + df['Home Team']
+                    st.info("Converting ESPN schedule data to prediction format")
+                
+                # Handle missing Week column - assume all current data is Week 1
+                if 'Week' not in df.columns:
+                    df['Week'] = 1  # Default to Week 1 for current predictions
+                    st.info("Week column missing from data - assuming all games are Week 1")
+                else:
+                    # Convert Week column to numeric
                     df['Week'] = pd.to_numeric(df['Week'], errors='coerce')
                 
                 # Remove rows with missing essential data
-                df = df.dropna(subset=['Week', 'Matchup'])
+                df = df.dropna(subset=['Matchup'])  # Don't require Week since we default it
                 
             return df, None, True
             
@@ -239,29 +249,67 @@ def show_enhanced_predictions(predictions_df):
     if not filtered_df.empty and 'Matchup' in filtered_df.columns:
         st.write(f"Debug - Sample matchups: {list(filtered_df['Matchup'].head(3))}")
     
-    # Display games
+    # Display games in card format
     if not filtered_df.empty:
-        st.subheader(f"🏈 Games ({len(filtered_df)} games)")
+        st.subheader(f"Football Games ({len(filtered_df)} games)")
         
-        # Simple game display
-        for idx, row in filtered_df.iterrows():
-            with st.container():
-                col1, col2, col3 = st.columns([2, 1, 1])
-                
-                with col1:
-                    st.write(f"**{row.get('Matchup', 'Unknown')}**")
-                
-                with col2:
-                    if 'Predicted Spread' in row:
-                        st.write(f"Spread: {row['Predicted Spread']}")
-                
-                with col3:
-                    if 'Week' in row:
-                        st.write(f"Week {row['Week']}")
-                
-                st.divider()
+        # Create a grid of cards
+        cols_per_row = 2
+        rows = [filtered_df.iloc[i:i+cols_per_row] for i in range(0, len(filtered_df), cols_per_row)]
+        
+        for row_games in rows:
+            cols = st.columns(cols_per_row)
+            
+            for i, (idx, game) in enumerate(row_games.iterrows()):
+                if i < len(cols):
+                    with cols[i]:
+                        # Create a card-like container with styling
+                        with st.container():
+                            # Parse matchup
+                            matchup = game.get('Matchup', 'Unknown vs Unknown')
+                            if ' vs ' in matchup:
+                                away_team, home_team = matchup.split(' vs ', 1)
+                            elif '@' in matchup:
+                                away_team, home_team = matchup.split('@', 1)
+                                away_team = away_team.strip()
+                                home_team = home_team.strip()
+                            else:
+                                away_team = game.get('Away Team', 'Unknown')
+                                home_team = game.get('Home Team', 'Unknown')
+                            
+                            # Card header with team names
+                            st.markdown(f"**{away_team}**")
+                            st.markdown(f"@ **{home_team}**")
+                            
+                            # Prediction information
+                            if 'Predicted Spread' in game:
+                                spread = game['Predicted Spread']
+                                if pd.notna(spread):
+                                    st.markdown(f"**Spread:** {spread}")
+                            
+                            if 'RF_Deep_Prediction' in game:
+                                rf_pred = game['RF_Deep_Prediction']
+                                if pd.notna(rf_pred):
+                                    st.markdown(f"**RF Model:** {rf_pred:.1f}")
+                            
+                            # Additional info
+                            info_items = []
+                            if 'Week' in game and pd.notna(game['Week']):
+                                info_items.append(f"Week {game['Week']}")
+                            if 'Confidence' in game and pd.notna(game['Confidence']):
+                                confidence = game['Confidence']
+                                if isinstance(confidence, (int, float)):
+                                    info_items.append(f"Conf: {confidence:.1f}%")
+                                else:
+                                    info_items.append(f"Conf: {confidence}")
+                            
+                            if info_items:
+                                st.markdown(f"*{' | '.join(info_items)}*")
+                            
+                            # Add some spacing
+                            st.markdown("---")
     else:
-        st.warning(f"No games found for the selected filters")
+        st.warning("No games found for the selected filters")
 
 def main():
     st.set_page_config(
@@ -270,7 +318,7 @@ def main():
         layout="wide"
     )
     
-    st.title("🏈 NCAA Football Predictions Dashboard")
+    st.title("NCAA Football Predictions Dashboard")
     st.write("Powered by RF_Deep Random Forest Model with Google Drive Integration")
     
     # Load the model
@@ -283,7 +331,7 @@ def main():
     st.success("✅ RF_Deep model loaded successfully!")
     
     # Create tabs
-    tab1, tab2 = st.tabs(["🏈 Live Predictions", "📊 Model Analysis"])
+    tab1, tab2 = st.tabs(["Live Predictions", "Model Analysis"])
     
     with tab1:
         with st.spinner("Loading predictions..."):

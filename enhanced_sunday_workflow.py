@@ -569,7 +569,7 @@ def main():
     logger = setup_logging()
     
     if not args.quiet:
-        print("\n🏈 ENHANCED NCAA FOOTBALL SUNDAY WORKFLOW 🏈")
+        print("\nENHANCED NCAA FOOTBALL SUNDAY WORKFLOW")
         print(f"Mode: {args.mode.title()}")
         print(f"Time: {datetime.now().strftime('%A, %B %d, %Y at %H:%M:%S')}")
         print("=" * 60)
