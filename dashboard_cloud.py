@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Enhanced NCAA Football Betting Dashboard
+Enhanced NCAA Football Betting Dashboard - PUBLIC VERSION
 - Pulls from Google Sheets (Predictions & Cover Analysis)
-- Clean UX showing betting recommendations
+- Clean card-based UX showing betting recommendations
 - Performance tracking with visual metrics
-- Real-time edge analysis
+- Configured for Streamlit Cloud deployment
 """
 
 import streamlit as st
@@ -14,9 +14,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Configuration
+# Configuration for public deployment
 SHEET_ID = "1Rmj5fbhwkQivv98hR5GqCNhBkV8-EwEtEA74bsC6wAU"
-SERVICE_ACCOUNT = r"C:\Users\31198\AppData\Local\Programs\Python\Python313\kentraining.json"
 
 st.set_page_config(
     page_title="NCAA Football Betting Dashboard", 
@@ -26,9 +25,17 @@ st.set_page_config(
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def load_google_sheets_data():
-    """Load data from Google Sheets"""
+    """Load data from Google Sheets using Streamlit secrets"""
     try:
-        gc = gspread.service_account(filename=SERVICE_ACCOUNT)
+        # Try Streamlit secrets first (for public deployment)
+        if "google_service_account" in st.secrets:
+            credentials = st.secrets["google_service_account"]
+            gc = gspread.service_account_from_dict(credentials)
+        else:
+            # Fallback to local file for development
+            SERVICE_ACCOUNT = r"C:\Users\31198\AppData\Local\Programs\Python\Python313\kentraining.json"
+            gc = gspread.service_account(filename=SERVICE_ACCOUNT)
+        
         spreadsheet = gc.open_by_key(SHEET_ID)
         
         # Load Predictions
