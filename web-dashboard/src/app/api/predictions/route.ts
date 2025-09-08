@@ -60,8 +60,17 @@ export async function GET() {
     
     console.log('Cover analysis fetched successfully');
     
+    // Fetch results data
+    const resultsResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Results!A:Z',
+    });
+    
+    console.log('Results fetched successfully');
+    
     const predictionsData = predictionsResponse.data.values || [];
     const coverData = coverResponse.data.values || [];
+    const resultsData = resultsResponse.data.values || [];
     
     // Convert to structured data
     const predictions: SheetRow[] = predictionsData.length > 1 ? 
@@ -84,9 +93,20 @@ export async function GET() {
         return obj;
       }) : [];
     
+    const results: SheetRow[] = resultsData.length > 1 ? 
+      resultsData.slice(1).map(row => {
+        const headers = resultsData[0];
+        const obj: SheetRow = {};
+        headers.forEach((header: string, index: number) => {
+          obj[header] = row[index] || '';
+        });
+        return obj;
+      }) : [];
+    
     return NextResponse.json({
       predictions,
       coverAnalysis,
+      results,
       lastUpdated: new Date().toISOString()
     });
     
