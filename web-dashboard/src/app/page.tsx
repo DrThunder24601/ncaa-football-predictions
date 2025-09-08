@@ -17,9 +17,14 @@ interface CoverAnalysis {
   Result: string;
 }
 
+interface Results {
+  [key: string]: string;
+}
+
 interface DashboardData {
   predictions: Prediction[];
   coverAnalysis: CoverAnalysis[];
+  results: Results[];
   lastUpdated: string;
 }
 
@@ -28,8 +33,9 @@ type Theme = 'dark' | 'light' | 'neon' | 'minimal';
 export default function BettingDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [minEdge, setMinEdge] = useState(2.0);
+  const minEdge = 2.0; // Fixed threshold, no longer user-adjustable
   const [theme, setTheme] = useState<Theme>('dark');
+  const [activeTab, setActiveTab] = useState<'predictions' | 'results' | 'cover-analysis'>('predictions');
 
   useEffect(() => {
     fetchData();
@@ -88,17 +94,17 @@ export default function BettingDashboard() {
       // Edge band classification with historical performance
       let confidence, edgeBand, bandEmoji;
       if (edge < 2) {
-        edgeBand = "0-2"; bandEmoji = "🔴"; confidence = "Avoid (40%)";
+        edgeBand = "0-2"; bandEmoji = "🔴"; confidence = "Fade (33.3%)";
       } else if (edge < 5) {
-        edgeBand = "2-5"; bandEmoji = "🟡"; confidence = "Weak (37%)";
+        edgeBand = "2-5"; bandEmoji = "🟡"; confidence = "Fade (33.3%)";
       } else if (edge < 7) {
-        edgeBand = "5-7"; bandEmoji = "🟢"; confidence = "Good (75%)";
+        edgeBand = "5-7"; bandEmoji = "🟢"; confidence = "Good (66.7%)";
       } else if (edge < 9) {
-        edgeBand = "7-9"; bandEmoji = "🔥"; confidence = "Excellent (100%)";
+        edgeBand = "7-9"; bandEmoji = "🔥"; confidence = "Strong (66.7%)";
       } else if (edge < 12) {
-        edgeBand = "9-12"; bandEmoji = "💎"; confidence = "Strong (60%)";
+        edgeBand = "9-12"; bandEmoji = "💎"; confidence = "Strong (66.7%)";
       } else {
-        edgeBand = "12+"; bandEmoji = "👑"; confidence = "Elite (64%)";
+        edgeBand = "12+"; bandEmoji = "👑"; confidence = "Elite (71.4%)";
       }
       
       return {
@@ -188,9 +194,6 @@ export default function BettingDashboard() {
               <span className={`px-3 py-1 rounded-full text-xs font-bold bg-green-600 text-white`}>
                 {winRate.toFixed(1)}% WIN RATE
               </span>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-orange-500 to-yellow-500 text-white">
-                LIVE TRACKING
-              </span>
             </div>
           </div>
           
@@ -225,22 +228,79 @@ export default function BettingDashboard() {
             </select>
           </div>
           
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Minimum Edge:</label>
-            <input
-              type="range"
-              min="0"
-              max="10"
-              step="0.5"
-              value={minEdge}
-              onChange={(e) => setMinEdge(parseFloat(e.target.value))}
-              className="w-32"
-            />
-            <span className={`text-sm ${currentTheme.textSecondary}`}>{minEdge}</span>
-          </div>
           
           <div className={`ml-auto text-sm ${currentTheme.textMuted}`}>
             Last updated: {new Date(data.lastUpdated).toLocaleTimeString()}
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className={`${currentTheme.headerBg} border-b ${currentTheme.border} p-4`}>
+        <div className="flex space-x-1">
+          <button
+            onClick={() => setActiveTab('predictions')}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'predictions'
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                : `${currentTheme.textSecondary} hover:${currentTheme.text}`
+            }`}
+          >
+            🎯 Predictions
+          </button>
+          <button
+            onClick={() => setActiveTab('results')}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'results'
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                : `${currentTheme.textSecondary} hover:${currentTheme.text}`
+            }`}
+          >
+            📊 Results
+          </button>
+          <button
+            onClick={() => setActiveTab('cover-analysis')}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              activeTab === 'cover-analysis'
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                : `${currentTheme.textSecondary} hover:${currentTheme.text}`
+            }`}
+          >
+            🏈 Cover Analysis
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'predictions' && (
+        <>
+      {/* Edge Band Performance Indicators */}
+      <div className={`${currentTheme.headerBg} border-b ${currentTheme.border} p-6`}>
+        <h2 className="text-2xl font-bold mb-6 text-white">📊 Edge Band Performance Guide</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          {[
+            { band: "0-2", emoji: "🔴", record: "9-18", pct: "33.3%", desc: "Fade" },
+            { band: "2-5", emoji: "🟡", record: "9-18", pct: "33.3%", desc: "Fade" },
+            { band: "5-7", emoji: "🟢", record: "6-3", pct: "66.7%", desc: "Good" },
+            { band: "7-9", emoji: "🔥", record: "14-7", pct: "66.7%", desc: "Strong" },
+            { band: "9-12", emoji: "💎", record: "4-2", pct: "66.7%", desc: "Strong" },
+            { band: "12+", emoji: "👑", record: "5-2", pct: "71.4%", desc: "Elite" }
+          ].map((band, index) => (
+            <div key={index} className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.border} text-center`}>
+              <div className="text-2xl mb-2">{band.emoji}</div>
+              <div className={`font-bold ${currentTheme.text}`}>{band.band} pts</div>
+              <div className={`text-sm ${currentTheme.textSecondary}`}>{band.record}</div>
+              <div className={`font-bold ${band.pct === '100%' ? 'text-green-400' : band.pct.startsWith('7') || band.pct.startsWith('6') ? 'text-yellow-400' : 'text-red-400'}`}>
+                {band.pct}
+              </div>
+              <div className={`text-xs ${currentTheme.textMuted}`}>{band.desc}</div>
+            </div>
+          ))}
+        </div>
+        
+        <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.border} text-center`}>
+          <div className={`text-lg font-bold ${currentTheme.text}`}>
+            🏆 Overall Strategy: Target 5+ point edges (29-14 overall, 67.4%) | Fade 0-5 edges (18-9 fade, 66.7%)
           </div>
         </div>
       </div>
@@ -269,109 +329,287 @@ export default function BettingDashboard() {
           </div>
         </div>
 
-        {/* Betting Opportunities */}
-        <h2 className="text-2xl font-bold mb-6">🎯 Betting Opportunities (Edge ≥ {minEdge})</h2>
+        {/* Collapsible Prediction Bins by Edge Band */}
+        <h2 className="text-2xl font-bold mb-6">🎯 Betting Predictions by Confidence</h2>
         
-        {bettingOpps.length === 0 ? (
-          <div className={`${currentTheme.cardBg} p-8 rounded-lg border ${currentTheme.border} text-center`}>
-            <div className={currentTheme.textMuted}>No betting opportunities found with edge ≥ {minEdge}</div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {bettingOpps.map((bet, index) => {
-              // Determine card styling based on edge band
-              let borderColor, bgColor;
-              if (bet.edgeBand === '12+') {
-                borderColor = 'border-purple-500';
-                bgColor = theme === 'neon' ? 'bg-purple-500/10' : 'bg-purple-900/20';
-              } else if (bet.edgeBand === '9-12') {
-                borderColor = 'border-blue-500';
-                bgColor = theme === 'neon' ? 'bg-blue-500/10' : 'bg-blue-900/20';
-              } else if (bet.edgeBand === '7-9') {
-                borderColor = 'border-red-500';
-                bgColor = theme === 'neon' ? 'bg-red-500/10' : 'bg-red-900/20';
-              } else if (bet.edgeBand === '5-7') {
-                borderColor = 'border-green-500';
-                bgColor = theme === 'neon' ? 'bg-green-500/10' : 'bg-green-900/20';
+        {(() => {
+          // Group predictions by edge band
+          const bandGroups: { [key: string]: (Prediction & { edge: number; edgeBand: string; bandEmoji: string; betRec: string; confidence: string; vegasLine: number })[] } = {};
+          const bandOrder = ['12+', '9-12', '7-9', '5-7', '2-5', '0-2'];
+          
+          bettingOpps.forEach(bet => {
+            if (!bandGroups[bet.edgeBand]) {
+              bandGroups[bet.edgeBand] = [];
+            }
+            bandGroups[bet.edgeBand].push(bet);
+          });
+          
+          // Also include non-betting opportunities for completeness
+          data.predictions
+            .filter(pred => pred.Line && pred.Line !== 'N/A' && pred.Line !== 'No Line Available')
+            .forEach(pred => {
+              const edge = parseFloat(pred.Edge) || 0;
+              const edgeBand = edge < 2 ? '0-2' : edge < 5 ? '2-5' : edge < 7 ? '5-7' : edge < 9 ? '7-9' : edge < 12 ? '9-12' : '12+';
+              
+              if (edge < minEdge) {
+                if (!bandGroups[edgeBand]) {
+                  bandGroups[edgeBand] = [];
+                }
+                
+                const vegasLine = parseFloat(pred.Line) || 0;
+                const bandEmoji = edgeBand === '0-2' ? '🔴' : edgeBand === '2-5' ? '🟡' : edgeBand === '5-7' ? '🟢' : edgeBand === '7-9' ? '🔥' : edgeBand === '9-12' ? '💎' : '👑';
+                
+                bandGroups[edgeBand].push({
+                  ...pred,
+                  edge,
+                  edgeBand,
+                  bandEmoji,
+                  betRec: 'Below Threshold',
+                  confidence: 'Low Edge',
+                  vegasLine
+                });
+              }
+            });
+          
+          return bandOrder.map(band => {
+            if (!bandGroups[band] || bandGroups[band].length === 0) return null;
+            
+            const games = bandGroups[band].sort((a, b) => b.edge - a.edge);
+            const bandInfo = {
+              '12+': { emoji: '👑', name: 'Elite', pct: '71.4%', color: 'border-purple-500' },
+              '9-12': { emoji: '💎', name: 'Strong', pct: '66.7%', color: 'border-blue-500' },
+              '7-9': { emoji: '🔥', name: 'Strong', pct: '66.7%', color: 'border-red-500' },
+              '5-7': { emoji: '🟢', name: 'Good', pct: '66.7%', color: 'border-green-500' },
+              '2-5': { emoji: '🟡', name: 'Fade', pct: '33.3%', color: 'border-yellow-500' },
+              '0-2': { emoji: '🔴', name: 'Fade', pct: '33.3%', color: 'border-red-500' }
+            }[band];
+            
+            return (
+              <details key={band} className="mb-4" open={['12+', '9-12', '7-9'].includes(band)}>
+                <summary className={`${currentTheme.cardBg} p-4 rounded-lg border ${bandInfo?.color} cursor-pointer hover:opacity-80 transition-opacity`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-bold flex items-center gap-2">
+                      {bandInfo?.emoji} {band} Point Edge - {bandInfo?.name} ({bandInfo?.pct})
+                    </span>
+                    <span className={`text-sm ${currentTheme.textMuted}`}>
+                      {games.length} games
+                    </span>
+                  </div>
+                </summary>
+                
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {games.map((bet, index) => {
+                    const isGoodBet = bet.edge >= minEdge;
+                    
+                    return (
+                      <div key={index} className={`${currentTheme.cardBg} ${isGoodBet ? `${bandInfo?.color} border-2` : `border ${currentTheme.border}`} rounded-lg p-4 ${isGoodBet ? 'shadow-lg' : ''}`}>
+                        <h4 className={`font-bold mb-2 flex items-center gap-2 ${currentTheme.text}`}>
+                          <span>{bet.bandEmoji}</span>
+                          <span>{bet.Matchup}</span>
+                        </h4>
+                        
+                        {isGoodBet && (
+                          <div className={`text-lg font-bold mb-2 ${currentTheme.accent}`}>
+                            {bet.betRec}
+                          </div>
+                        )}
+                        
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <div className={`font-semibold ${currentTheme.textSecondary}`}>Edge</div>
+                            <div className={currentTheme.text}>{bet.edge.toFixed(1)}</div>
+                          </div>
+                          
+                          <div>
+                            <div className={`font-semibold ${currentTheme.textSecondary}`}>Model</div>
+                            <div className={currentTheme.text}>{bet['Predicted Difference']}</div>
+                          </div>
+                          
+                          <div>
+                            <div className={`font-semibold ${currentTheme.textSecondary}`}>Vegas</div>
+                            <div className={currentTheme.text}>{bet.Line}</div>
+                          </div>
+                        </div>
+                        
+                        {!isGoodBet && (
+                          <div className={`mt-2 text-xs ${currentTheme.textMuted}`}>
+                            Below {minEdge} threshold
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            );
+          }).filter(Boolean);
+        })()}
+
+        {/* Games by Schedule Order */}
+        <h2 className="text-2xl font-bold mb-6 mt-12">📅 Games by Schedule</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.predictions
+            .filter(pred => pred.Line && pred.Line !== 'N/A' && pred.Line !== 'No Line Available')
+            .map((pred, index) => {
+              const edge = parseFloat(pred.Edge) || 0;
+              const predDiff = parseFloat(pred['Predicted Difference']) || 0;
+              const vegasLine = parseFloat(pred.Line) || 0;
+              const edgeBand = edge < 2 ? '0-2' : edge < 5 ? '2-5' : edge < 7 ? '5-7' : edge < 9 ? '7-9' : edge < 12 ? '9-12' : '12+';
+              const bandEmoji = edgeBand === '0-2' ? '🔴' : edgeBand === '2-5' ? '🟡' : edgeBand === '5-7' ? '🟢' : edgeBand === '7-9' ? '🔥' : edgeBand === '9-12' ? '💎' : '👑';
+              
+              let betRec = '';
+              let betType = '';
+              
+              if (edge >= minEdge) {
+                if (predDiff > vegasLine) {
+                  betRec = `Take ${pred.Favorite} -${vegasLine}`;
+                  betType = 'Favorite';
+                } else {
+                  betRec = `Take ${pred.Underdog} +${vegasLine}`;
+                  betType = 'Underdog';
+                }
               } else {
-                borderColor = 'border-yellow-500';
-                bgColor = theme === 'neon' ? 'bg-yellow-500/10' : 'bg-yellow-900/20';
+                betRec = 'Below Threshold';
+                betType = 'Low Edge';
               }
               
+              const isGoodBet = edge >= minEdge;
+              const bandInfo = {
+                '12+': { color: 'border-purple-500' },
+                '9-12': { color: 'border-blue-500' },
+                '7-9': { color: 'border-red-500' },
+                '5-7': { color: 'border-green-500' },
+                '2-5': { color: 'border-yellow-500' },
+                '0-2': { color: 'border-red-500' }
+              }[edgeBand];
+              
               return (
-                <div key={index} className={`${currentTheme.cardBg} ${bgColor} ${borderColor} border-2 rounded-xl p-6`}>
-                  <h3 className={`text-xl font-bold mb-2 flex items-center gap-2 ${currentTheme.text}`}>
-                    <span>{bet.bandEmoji}</span>
-                    <span>{bet.betRec}</span>
-                  </h3>
+                <div key={index} className={`${currentTheme.cardBg} ${isGoodBet ? `${bandInfo?.color} border-2` : `border ${currentTheme.border}`} rounded-lg p-4 ${isGoodBet ? 'shadow-lg' : ''}`}>
+                  <h4 className={`font-bold mb-2 flex items-center gap-2 ${currentTheme.text}`}>
+                    <span>{bandEmoji}</span>
+                    <span>{pred.Matchup}</span>
+                  </h4>
                   
-                  <p className={`${currentTheme.textSecondary} mb-4`}>{bet.Matchup}</p>
+                  {isGoodBet && (
+                    <div className={`text-lg font-bold mb-2 ${currentTheme.accent}`}>
+                      {betRec}
+                    </div>
+                  )}
                   
-                  <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-2 text-sm">
                     <div>
                       <div className={`font-semibold ${currentTheme.textSecondary}`}>Edge</div>
-                      <div className={`text-xl font-bold ${currentTheme.text}`}>{bet.edge.toFixed(1)}</div>
+                      <div className={currentTheme.text}>{edge.toFixed(1)}</div>
                     </div>
                     
                     <div>
-                      <div className={`font-semibold ${currentTheme.textSecondary}`}>Band</div>
-                      <div className={currentTheme.text}>{bet.edgeBand}</div>
+                      <div className={`font-semibold ${currentTheme.textSecondary}`}>Model</div>
+                      <div className={currentTheme.text}>{pred['Predicted Difference']}</div>
                     </div>
                     
                     <div>
-                      <div className={`font-semibold ${currentTheme.textSecondary}`}>Type</div>
-                      <div className={currentTheme.text}>{bet.betType}</div>
-                    </div>
-                    
-                    <div>
-                      <div className={`font-semibold ${currentTheme.textSecondary}`}>Confidence</div>
-                      <div className={currentTheme.text}>{bet.confidence}</div>
+                      <div className={`font-semibold ${currentTheme.textSecondary}`}>Vegas</div>
+                      <div className={currentTheme.text}>{pred.Line}</div>
                     </div>
                   </div>
                   
-                  <div className={`mt-4 pt-4 border-t ${currentTheme.border} text-xs ${currentTheme.textMuted}`}>
-                    Our Prediction: {bet.Favorite} -{bet['Predicted Difference']} | Vegas: {bet.vegasLine}
-                  </div>
+                  {!isGoodBet && (
+                    <div className={`mt-2 text-xs ${currentTheme.textMuted}`}>
+                      Below 2.0 threshold
+                    </div>
+                  )}
                 </div>
               );
             })}
-          </div>
-        )}
+        </div>
 
-        {/* Edge Band Performance Section */}
-        <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-6">📊 Edge Band Historical Performance</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              { band: "0-2", emoji: "🔴", record: "2-3", pct: "40%", desc: "Avoid" },
-              { band: "2-5", emoji: "🟡", record: "3-5", pct: "37%", desc: "Weak" },
-              { band: "5-7", emoji: "🟢", record: "3-1", pct: "75%", desc: "Good" },
-              { band: "7-9", emoji: "🔥", record: "2-0", pct: "100%", desc: "Excellent" },
-              { band: "9-12", emoji: "💎", record: "3-2", pct: "60%", desc: "Strong" },
-              { band: "12+", emoji: "👑", record: "9-5", pct: "64%", desc: "Elite" }
-            ].map((band, index) => (
-              <div key={index} className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.border} text-center`}>
-                <div className="text-2xl mb-2">{band.emoji}</div>
-                <div className={`font-bold ${currentTheme.text}`}>{band.band} pts</div>
-                <div className={`text-sm ${currentTheme.textSecondary}`}>{band.record}</div>
-                <div className={`font-bold ${band.pct === '100%' ? 'text-green-400' : band.pct.startsWith('7') || band.pct.startsWith('6') ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {band.pct}
-                </div>
-                <div className={`text-xs ${currentTheme.textMuted}`}>{band.desc}</div>
-              </div>
-            ))}
-          </div>
-          
-          <div className={`mt-6 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.border} text-center`}>
-            <div className={`text-lg font-bold ${currentTheme.text}`}>
-              🏆 Overall Record: 22-16 (57.9%)
-            </div>
-            <div className={`text-sm ${currentTheme.textMuted} mt-2`}>
-              Strategy: Target 5+ point edges • Avoid under 5 points
-            </div>
+      </div>
+        </>
+      )}
+
+      {/* Results Tab */}
+      {activeTab === 'results' && (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-6">📊 Results</h2>
+          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.border} overflow-x-auto`}>
+            <table className="w-full">
+              <thead>
+                <tr className={`border-b ${currentTheme.border}`}>
+                  {data?.results?.[0] && Object.keys(data.results[0]).map((header) => (
+                    <th key={header} className={`text-left p-2 ${currentTheme.text} font-semibold`}>
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data?.results?.map((row, index) => (
+                  <tr key={index} className={`border-b ${currentTheme.border} hover:opacity-80 transition-opacity`}>
+                    {Object.values(row).map((value, cellIndex) => (
+                      <td key={cellIndex} className={`p-2 ${currentTheme.textSecondary}`}>
+                        {value}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Cover Analysis Tab */}
+      {activeTab === 'cover-analysis' && (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-6">🏈 Cover Analysis (Table View)</h2>
+          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.border} overflow-x-auto`}>
+            <table className="w-full">
+              <thead>
+                <tr className={`border-b ${currentTheme.border}`}>
+                  <th className={`text-left p-3 ${currentTheme.text} font-semibold`}>Date</th>
+                  <th className={`text-left p-3 ${currentTheme.text} font-semibold`}>Game</th>
+                  <th className={`text-left p-3 ${currentTheme.text} font-semibold`}>Our Bet</th>
+                  <th className={`text-center p-3 ${currentTheme.text} font-semibold`}>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.coverAnalysis?.sort((a, b) => {
+                  // Sort by date if available, otherwise by game name
+                  const aRecord = a as unknown as Record<string, string>;
+                  const bRecord = b as unknown as Record<string, string>;
+                  const dateA = aRecord.Date || aRecord.date || aRecord.DATE || a.Game;
+                  const dateB = bRecord.Date || bRecord.date || bRecord.DATE || b.Game;
+                  return String(dateB).localeCompare(String(dateA));
+                })?.map((game, index) => (
+                  <tr key={index} className={`border-b ${currentTheme.border} hover:opacity-80 transition-opacity`}>
+                    <td className={`p-3 ${currentTheme.textSecondary}`}>
+                      {(() => {
+                        const gameRecord = game as unknown as Record<string, string>;
+                        return gameRecord.Date || gameRecord.date || gameRecord.DATE || 'TBD';
+                      })()}
+                    </td>
+                    <td className={`p-3 ${currentTheme.text} font-medium`}>
+                      {game.Game}
+                    </td>
+                    <td className={`p-3 ${currentTheme.textSecondary}`}>
+                      {game['Our Bet']}
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                        game.Result === 'WIN' ? 'bg-green-600 text-white' : 
+                        game.Result === 'LOSS' ? 'bg-red-600 text-white' : 
+                        'bg-gray-600 text-white'
+                      }`}>
+                        {game.Result}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
