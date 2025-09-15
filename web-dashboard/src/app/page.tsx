@@ -186,7 +186,7 @@ export default function BettingDashboard() {
 
   const getEdgeBandPerformance = (edgeBand: string) => {
     // Updated with actual Cover Analysis data
-    const performances = {
+    const performances: Record<string, { record: string; percentage: number }> = {
       '12+': { record: '24-17', percentage: 58.5 },
       '9-12': { record: '12-5', percentage: 70.6 },
       '7-9': { record: '4-2', percentage: 66.7 },
